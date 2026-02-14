@@ -38,5 +38,11 @@ export type {
 
 // Infrastructure adapters (built-in)
 export { CsvParser } from './infrastructure/parsers/CsvParser.js';
+export { JsonParser } from './infrastructure/parsers/JsonParser.js';
+export type { JsonParserOptions } from './infrastructure/parsers/JsonParser.js';
 export { BufferSource } from './infrastructure/sources/BufferSource.js';
+export { FilePathSource } from './infrastructure/sources/FilePathSource.js';
+export type { FilePathSourceOptions } from './infrastructure/sources/FilePathSource.js';
+export { StreamSource } from './infrastructure/sources/StreamSource.js';
+export type { StreamSourceOptions } from './infrastructure/sources/StreamSource.js';
 export { InMemoryStateStore } from './infrastructure/state/InMemoryStateStore.js';

@@ -74,8 +74,8 @@ Backlog organizado por fases. Cada tarea tiene un estado:
 ## Fase 8: Fuentes de datos (Test 8)
 
 - [x] Escribir test de aceptación: múltiples fuentes producen mismo resultado
-- [ ] Implementar `FilePathSource` (leer de ruta local, Node.js only) — crítico para imports de ficheros grandes (1M+ registros) donde `BufferSource` carga todo en memoria
-- [ ] Implementar `StreamSource` (ReadableStream / AsyncIterable) — complementa `FilePathSource` para cuando el consumer ya tiene un stream (e.g. upload de Express/Fastify)
+- [x] Implementar `FilePathSource` — lee de ruta local con `createReadStream`, streaming real por chunks (configurable `highWaterMark`), detección de MIME type por extensión
+- [x] Implementar `StreamSource` — acepta `AsyncIterable` o `ReadableStream`, convierte Buffer a string, protección contra doble lectura, metadata configurable
 - [ ] Implementar `UrlSource` (fetch desde URL)
 
 ## Fase 9: Eventos (Test 10)
@@ -94,9 +94,9 @@ Backlog organizado por fases. Cada tarea tiene un estado:
 
 ## Fase 11: Parsers adicionales
 
-- [ ] Implementar `JsonParser` (implementa `SourceParser`)
+- [x] Implementar `JsonParser` — soporta JSON array y NDJSON con autodetección, flatten de objetos anidados, zero dependencies
 - [ ] Implementar `XmlParser` (implementa `SourceParser`, puede usar fast-xml-parser)
-- [ ] Tests para cada parser
+- [x] Tests para JsonParser (21 unit + 5 acceptance)
 
 ## Fase 12: Hardening
 

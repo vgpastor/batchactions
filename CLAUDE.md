@@ -147,7 +147,9 @@ Everything exported from `index.ts` is public API. Changes to exports are breaki
 - `ImportStatus` and `BatchStatus` value enums (runtime exports)
 - Port interfaces (for consumers implementing custom adapters)
 - Domain event types (for typed event handlers)
-- Built-in adapters: `CsvParser`, `BufferSource`, `InMemoryStateStore`
+- Built-in parsers: `CsvParser`, `JsonParser`
+- Built-in sources: `BufferSource`, `FilePathSource`, `StreamSource`
+- Built-in state stores: `InMemoryStateStore`
 
 ## Breaking Changes Policy
 
@@ -188,7 +190,7 @@ Published as `@bulkimport/core@0.1.0`. CI/CD configured with GitHub Actions (lin
 - Domain events with typed EventBus.
 - `skipEmptyRows` in `SchemaValidator` — filters empty rows before validation in both `start()` and `preview()`.
 - ESLint 9 flat config + Prettier configured and enforced.
-- 70 acceptance + unit tests passing (including edge cases: empty files, BOM, delimiters, line endings, quoted fields, skipEmptyRows).
+- 113 acceptance + unit tests passing (including edge cases: empty files, BOM, delimiters, line endings, quoted fields, skipEmptyRows).
 
 ### Known Gaps
 
@@ -196,8 +198,8 @@ Published as `@bulkimport/core@0.1.0`. CI/CD configured with GitHub Actions (lin
 - `StateStore` port is partially used — `BulkImport` calls `saveJobState()` but not `saveProcessedRecord()` or query methods. In-memory counters are the source of truth during execution.
 - `BulkImport.restore()` static method not implemented (resume from persisted state after crash).
 - `application/usecases/` layer not extracted — all orchestration lives in `BulkImport` facade.
-- Missing parsers: `JsonParser`, `XmlParser`.
-- Missing sources: `FilePathSource`, `StreamSource`, `UrlSource`.
+- Missing parsers: `XmlParser`.
+- Missing sources: `UrlSource`.
 - Missing state stores: `FileStateStore`.
 - No retry mechanism for failed records.
 - No JSDoc on public API.
