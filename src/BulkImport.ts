@@ -9,8 +9,8 @@ import type { StateStore } from './domain/ports/StateStore.js';
 import type { RecordProcessorFn, ProcessingContext } from './domain/ports/RecordProcessor.js';
 import type { EventType, EventPayload } from './domain/events/DomainEvents.js';
 import { canTransition } from './domain/model/ImportStatus.js';
-import { createBatch } from './domain/model/Batch.js';
-import { createPendingRecord, markRecordValid, markRecordInvalid, markRecordProcessed, markRecordFailed } from './domain/model/Record.js';
+import { createBatch, clearBatchRecords } from './domain/model/Batch.js';
+import { createPendingRecord, markRecordValid, markRecordInvalid, markRecordFailed } from './domain/model/Record.js';
 import { SchemaValidator } from './domain/services/SchemaValidator.js';
 import { EventBus } from './application/EventBus.js';
 import { InMemoryStateStore } from './infrastructure/state/InMemoryStateStore.js';
@@ -35,8 +35,10 @@ export class BulkImport {
   private jobId: string;
   private status: ImportStatus = 'CREATED';
   private batches: Batch[] = [];
-  private allRecords: ProcessedRecord[] = [];
   private totalRecords = 0;
+  private processedCount = 0;
+  private failedCount = 0;
+  private failedRecordsAccum: ProcessedRecord[] = [];
   private startedAt?: number;
 
   private abortController: AbortController | null = null;
@@ -100,37 +102,60 @@ export class BulkImport {
 
   async start(processor: RecordProcessorFn): Promise<void> {
     this.assertSourceConfigured();
-
     this.assertCanStart();
 
     this.transitionTo('PROCESSING');
     this.abortController = new AbortController();
     this.startedAt = Date.now();
 
-    const allRawRecords = await this.parseRecords();
-    this.totalRecords = allRawRecords.length;
+    this.processedCount = 0;
+    this.failedCount = 0;
+    this.failedRecordsAccum = [];
+    this.batches = [];
+    this.totalRecords = 0;
 
-    this.batches = this.splitIntoBatches(allRawRecords);
-
-    await this.saveState();
+    const source = this.source;
+    const parser = this.parser;
+    if (!source || !parser) {
+      throw new Error('Source and parser must be configured. Call .from(source, parser) first.');
+    }
 
     this.eventBus.emit({
       type: 'import:started',
       jobId: this.jobId,
-      totalRecords: this.totalRecords,
-      totalBatches: this.batches.length,
+      totalRecords: 0,
+      totalBatches: 0,
       timestamp: Date.now(),
     });
 
     try {
-      for (let i = 0; i < this.batches.length; i++) {
-        if (this.abortController.signal.aborted) break;
-        await this.checkPause();
+      let batchIndex = 0;
+      let recordIndex = 0;
+      let batchBuffer: ProcessedRecord[] = [];
 
-        const batch = this.batches[i];
-        if (!batch) break;
-        await this.processBatch(batch, processor);
+      for await (const chunk of source.read()) {
+        for await (const raw of parser.parse(chunk)) {
+          if (this.abortController.signal.aborted) break;
+          await this.checkPause();
+
+          batchBuffer.push(createPendingRecord(recordIndex, raw));
+          recordIndex++;
+          this.totalRecords = recordIndex;
+
+          if (batchBuffer.length >= this.config.batchSize) {
+            await this.processStreamBatch(batchBuffer, batchIndex, processor);
+            batchBuffer = [];
+            batchIndex++;
+          }
+        }
+        if (this.abortController.signal.aborted) break;
       }
+
+      if (batchBuffer.length > 0 && !this.abortController.signal.aborted && this.status !== 'ABORTED') {
+        await this.processStreamBatch(batchBuffer, batchIndex, processor);
+      }
+
+      this.totalRecords = recordIndex;
 
       if (!this.abortController.signal.aborted && this.status !== 'ABORTED') {
         this.transitionTo('COMPLETED');
@@ -225,11 +250,11 @@ export class BulkImport {
   }
 
   getFailedRecords(): readonly ProcessedRecord[] {
-    return this.allRecords.filter((r) => r.status === 'failed' || r.status === 'invalid');
+    return this.failedRecordsAccum;
   }
 
   getPendingRecords(): readonly ProcessedRecord[] {
-    return this.allRecords.filter((r) => r.status === 'pending' || r.status === 'valid');
+    return [];
   }
 
   getJobId(): string {
@@ -238,24 +263,30 @@ export class BulkImport {
 
   // --- Private methods ---
 
-  private async processBatch(batch: Batch, processor: RecordProcessorFn): Promise<void> {
-    const batchIndex = this.batches.indexOf(batch);
+  private async processStreamBatch(
+    records: ProcessedRecord[],
+    batchIndex: number,
+    processor: RecordProcessorFn,
+  ): Promise<void> {
+    const batchId = crypto.randomUUID();
+    const batch = createBatch(batchId, batchIndex, records);
+    this.batches.push(batch);
 
-    this.updateBatchStatus(batch.id, 'PROCESSING');
+    this.updateBatchStatus(batchId, 'PROCESSING');
 
     this.eventBus.emit({
       type: 'batch:started',
       jobId: this.jobId,
-      batchId: batch.id,
+      batchId,
       batchIndex,
-      recordCount: batch.records.length,
+      recordCount: records.length,
       timestamp: Date.now(),
     });
 
     let processedCount = 0;
     let failedCount = 0;
 
-    for (const record of batch.records) {
+    for (const record of records) {
       if (this.abortController?.signal.aborted) break;
       await this.checkPause();
 
@@ -264,13 +295,14 @@ export class BulkImport {
 
       if (!validation.isValid) {
         const invalidRecord = markRecordInvalid(record, validation.errors);
-        this.updateRecord(record.index, invalidRecord);
+        this.failedCount++;
+        this.failedRecordsAccum.push(invalidRecord);
         failedCount++;
 
         this.eventBus.emit({
           type: 'record:failed',
           jobId: this.jobId,
-          batchId: batch.id,
+          batchId,
           recordIndex: record.index,
           error: validation.errors.map((e) => e.message).join('; '),
           record: invalidRecord,
@@ -288,7 +320,7 @@ export class BulkImport {
       try {
         const context: ProcessingContext = {
           jobId: this.jobId,
-          batchId: batch.id,
+          batchId,
           batchIndex,
           recordIndex: record.index,
           totalRecords: this.totalRecords,
@@ -297,26 +329,26 @@ export class BulkImport {
 
         await processor(validRecord.parsed, context);
 
-        const processed = markRecordProcessed(validRecord);
-        this.updateRecord(record.index, processed);
+        this.processedCount++;
         processedCount++;
 
         this.eventBus.emit({
           type: 'record:processed',
           jobId: this.jobId,
-          batchId: batch.id,
+          batchId,
           recordIndex: record.index,
           timestamp: Date.now(),
         });
       } catch (error) {
         const failedRecord = markRecordFailed(validRecord, error instanceof Error ? error.message : String(error));
-        this.updateRecord(record.index, failedRecord);
+        this.failedCount++;
+        this.failedRecordsAccum.push(failedRecord);
         failedCount++;
 
         this.eventBus.emit({
           type: 'record:failed',
           jobId: this.jobId,
-          batchId: batch.id,
+          batchId,
           recordIndex: record.index,
           error: error instanceof Error ? error.message : String(error),
           record: failedRecord,
@@ -329,16 +361,25 @@ export class BulkImport {
       }
     }
 
-    this.updateBatchStatus(batch.id, 'COMPLETED', processedCount, failedCount);
+    this.updateBatchStatus(batchId, 'COMPLETED', processedCount, failedCount);
+
+    // Clear records from batch to release memory
+    const batchPos = this.batches.findIndex((b) => b.id === batchId);
+    if (batchPos >= 0) {
+      const currentBatch = this.batches[batchPos];
+      if (currentBatch) {
+        this.batches[batchPos] = clearBatchRecords(currentBatch);
+      }
+    }
 
     this.eventBus.emit({
       type: 'batch:completed',
       jobId: this.jobId,
-      batchId: batch.id,
+      batchId,
       batchIndex,
       processedCount,
       failedCount,
-      totalCount: batch.records.length,
+      totalCount: records.length,
       timestamp: Date.now(),
     });
 
@@ -368,27 +409,6 @@ export class BulkImport {
     return records;
   }
 
-  private splitIntoBatches(records: ProcessedRecord[]): Batch[] {
-    const batches: Batch[] = [];
-    const { batchSize } = this.config;
-
-    for (let i = 0; i < records.length; i += batchSize) {
-      const batchRecords = records.slice(i, i + batchSize);
-      const batchId = crypto.randomUUID();
-      batches.push(createBatch(batchId, batches.length, batchRecords));
-    }
-
-    this.allRecords = [...records];
-    return batches;
-  }
-
-  private updateRecord(index: number, record: ProcessedRecord): void {
-    const pos = this.allRecords.findIndex((r) => r.index === index);
-    if (pos >= 0) {
-      this.allRecords[pos] = record;
-    }
-  }
-
   private updateBatchStatus(batchId: string, status: Batch['status'], processedCount?: number, failedCount?: number): void {
     this.batches = this.batches.map((b) =>
       b.id === batchId
@@ -410,9 +430,10 @@ export class BulkImport {
   }
 
   private buildProgress(): ImportProgress {
-    const processed = this.allRecords.filter((r) => r.status === 'processed').length;
-    const failed = this.allRecords.filter((r) => r.status === 'failed' || r.status === 'invalid').length;
-    const pending = this.totalRecords - processed - failed;
+    const processed = this.processedCount;
+    const failed = this.failedCount;
+    const pending = Math.max(0, this.totalRecords - processed - failed);
+    const completed = processed + failed;
     const completedBatches = this.batches.filter((b) => b.status === 'COMPLETED').length;
     const elapsed = this.startedAt ? Date.now() - this.startedAt : 0;
 
@@ -421,7 +442,7 @@ export class BulkImport {
       processedRecords: processed,
       failedRecords: failed,
       pendingRecords: pending,
-      percentage: this.totalRecords > 0 ? Math.round((processed / this.totalRecords) * 100) : 0,
+      percentage: this.totalRecords > 0 ? Math.round((completed / this.totalRecords) * 100) : 0,
       currentBatch: completedBatches,
       totalBatches: this.batches.length,
       elapsedMs: elapsed,
@@ -429,9 +450,9 @@ export class BulkImport {
   }
 
   private buildSummary(): ImportSummary {
-    const processed = this.allRecords.filter((r) => r.status === 'processed').length;
-    const failed = this.allRecords.filter((r) => r.status === 'failed' || r.status === 'invalid').length;
-    const skipped = this.totalRecords - processed - failed;
+    const processed = this.processedCount;
+    const failed = this.failedCount;
+    const skipped = Math.max(0, this.totalRecords - processed - failed);
     const elapsed = this.startedAt ? Date.now() - this.startedAt : 0;
 
     return { total: this.totalRecords, processed, failed, skipped, elapsedMs: elapsed };

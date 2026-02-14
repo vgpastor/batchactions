@@ -74,8 +74,8 @@ Backlog organizado por fases. Cada tarea tiene un estado:
 ## Fase 8: Fuentes de datos (Test 8)
 
 - [x] Escribir test de aceptación: múltiples fuentes producen mismo resultado
-- [ ] Implementar `FilePathSource` (leer de ruta local, Node.js only)
-- [ ] Implementar `StreamSource` (ReadableStream / AsyncIterable)
+- [ ] Implementar `FilePathSource` (leer de ruta local, Node.js only) — crítico para imports de ficheros grandes (1M+ registros) donde `BufferSource` carga todo en memoria
+- [ ] Implementar `StreamSource` (ReadableStream / AsyncIterable) — complementa `FilePathSource` para cuando el consumer ya tiene un stream (e.g. upload de Express/Fastify)
 - [ ] Implementar `UrlSource` (fetch desde URL)
 
 ## Fase 9: Eventos (Test 10)
@@ -85,33 +85,52 @@ Backlog organizado por fases. Cada tarea tiene un estado:
 - [x] Escribir tests unitarios de EventBus
 - [x] Emitir todos los domain events desde BulkImport
 
-## Fase 10: Parsers adicionales
+## Fase 10: Schema avanzado (feedback de usuarios)
+
+- [ ] Tipo de campo `array` con separador configurable — permite declarar campos como `{ name: 'authorizedZones', type: 'array', separator: ';' }` en vez de forzar al consumer a hacer split manual en el processor. Añadir `'array'` a `FieldType`, añadir `separator` a `FieldDefinition`, implementar parsing y validación en `SchemaValidator`
+- [ ] Aliases de columnas — mapeo declarativo de headers alternativos: `{ name: 'documentNumber', aliases: ['document_number', 'Documento', 'DNI'] }`. Añadir `aliases?: readonly string[]` a `FieldDefinition`. Resolver aliases en la fase de parsing (antes de validar) para que el rest del pipeline trabaje con el nombre canónico. Este es el feature con más impacto según feedback (reduce soporte al usuario)
+- [ ] Detección de duplicados intra-import — permitir declarar campos únicos en el schema: `{ fields: [...], uniqueFields: ['identifier'] }`. Añadir `uniqueFields?: readonly string[]` a `SchemaDefinition`. Implementar tracking de valores vistos y emitir error de validación si se detecta duplicado. Decidir si aplica por batch o por import completo (requiere acumular set de valores vistos)
+- [ ] Generación de template CSV desde schema — método estático o de instancia que genere un CSV de ejemplo a partir del schema: `BulkImport.generateTemplate(schema)` → `"identifier,name,documentNumber,..."`. Permite al frontend pedir el template al backend y mantenerlo siempre sincronizado con el schema
+
+## Fase 11: Parsers adicionales
 
 - [ ] Implementar `JsonParser` (implementa `SourceParser`)
 - [ ] Implementar `XmlParser` (implementa `SourceParser`, puede usar fast-xml-parser)
 - [ ] Tests para cada parser
 
-## Fase 11: Hardening
+## Fase 12: Hardening
 
-- [ ] Streaming real — `parseRecords()` actualmente carga todo en memoria antes de crear batches. Debe procesar batch a batch sin materializar todo el fichero
+- [x] Streaming real — `start()` ahora parsea records lazily y procesa batch a batch sin materializar todo el fichero. Records liberados de memoria tras cada batch.
+- [x] Corregir `percentage` en `buildProgress()` — ahora incluye `processed + failed` en el cálculo, imports con fallos llegan al 100%
+- [x] Contadores O(1) — `buildProgress()` y `buildSummary()` usan contadores en vez de `allRecords.filter()`. Eliminado `allRecords[]`.
 - [ ] Implementar `maxConcurrentBatches` — declarado en config pero no implementado, los batches son secuenciales
-- [ ] Corregir `percentage` en `buildProgress()` — solo cuenta `processed`, no `failed`, así que imports con fallos nunca llegan al 100%
 - [ ] Tests de edge cases: fichero vacío, fichero enorme (streaming), encodings especiales, BOM, delimitadores raros
 - [ ] Tests de concurrencia con `maxConcurrentBatches > 1`
 
-## Fase 12: Publicación
+## Fase 13: Publicación
 
 - [x] README con ejemplos de uso, tabla de compatibilidad, ejemplo complejo (Express + PostgreSQL)
 - [x] Verificar que el build genera correctamente ESM + CJS + .d.ts
+- [x] Configurar npm publish (scope, access public) — publicado como `@bulkimport/core@0.1.0`
+- [x] CI/CD — GitHub Actions: CI (lint, typecheck, test matrix Node 18/20/22, build) + Release (tag push → npm publish con OIDC provenance + GitHub Release)
 - [ ] JSDoc en toda la API pública
-- [ ] Configurar npm publish (scope, access public)
 - [ ] Añadir CHANGELOG
+
+---
+
+## Ideas de usuarios (bajo evaluación)
+
+Features sugeridos por consumers que requieren más análisis de diseño antes de planificar:
+
+- [ ] **Modo upsert** — config de import mode: `'insert' | 'upsert' | 'update-only'` con `matchBy: ['identifier']`. La lógica de persistencia la implementa cada consumer en su processor, pero la librería pasaría el `mode` en el context del processor y podría exponer un hook `onDuplicate`. Requiere decidir: ¿es responsabilidad del domain model o solo un pass-through en el context? ¿Añade acoplamiento con la capa de persistencia del consumer?
+- [ ] **Adaptadores de StateStore para persistencia real** — SequelizeStateStore, PrismaStateStore, RedisStateStore. Útil para imports largos que sobrevivan a deploys/crashes. Prerequisito: completar la integración de StateStore (Fase 6). Evaluar si estos adaptadores deben vivir en este paquete o en paquetes separados (`@bulkimport/state-sequelize`, etc.) para no añadir dependencies opcionales
 
 ---
 
 ## Deuda técnica
 
 - [ ] Extraer use cases de `BulkImport` facade a `application/usecases/` (CreateImportJob, StartImport, PauseImport, etc.) — actualmente toda la orquestación vive en una sola clase
-- [ ] Extraer `BatchSplitter` como domain service (actualmente es un método privado en `BulkImport`)
-- [ ] El record no debería retener datos tras ser procesado — la spec dice que los records pasan por el callback y se descartan de memoria. Actualmente `allRecords` en `BulkImport` los retiene todos
+- [ ] Extraer lógica de batching como domain service `BatchSplitter` — `splitIntoBatches` ya no existe (eliminado con el refactor de streaming), pero la lógica de acumulación en `batchBuffer` dentro de `start()` podría extraerse a un servicio de dominio reutilizable
+- [x] ~~El record no debería retener datos tras ser procesado~~ — resuelto con streaming: records se liberan tras cada batch, solo `failedRecords` se retienen
+- [ ] `markRecordProcessed` en `Record.ts` ya no se usa en `BulkImport` (eliminado con el refactor de streaming/contadores). Evaluar si eliminarlo o mantenerlo como parte de la API pública para consumers que manejen records manualmente
 - [ ] `DataSource.sample()` en la spec recibe `maxRecords` y devuelve `AsyncIterable`, pero la implementación actual recibe `maxBytes` y devuelve `Promise<string | Buffer>`. Alinear con la spec o documentar la decisión

@@ -8,6 +8,8 @@ import type {
   RecordFailedEvent,
 } from '../../src/domain/events/DomainEvents.js';
 import type { RawRecord } from '../../src/domain/model/Record.js';
+import type { SourceParser } from '../../src/domain/ports/SourceParser.js';
+import type { DataSource } from '../../src/domain/ports/DataSource.js';
 
 // --- Helpers ---
 
@@ -380,5 +382,82 @@ describe('Test 10: Granular events in correct order', () => {
 
     // Should have progress events after each batch
     expect(eventOrder.filter((e) => e === 'import:progress')).toHaveLength(2);
+  });
+});
+
+// ============================================================
+// TEST 11: Streaming processes batch-by-batch
+// ============================================================
+describe('Test 11: Streaming processes batch-by-batch without loading all records', () => {
+  it('should process batches incrementally and release batch records after completion', async () => {
+    const testRecords: RawRecord[] = [
+      { email: 'user1@test.com', name: 'User 1', age: '10' },
+      { email: 'user2@test.com', name: 'User 2', age: '20' },
+      { email: 'user3@test.com', name: 'User 3', age: '30' },
+      { email: 'user4@test.com', name: 'User 4', age: '40' },
+      { email: 'user5@test.com', name: 'User 5', age: '50' },
+    ];
+
+    // Custom parser that yields records one at a time
+    const oneByOneParser: SourceParser = {
+      *parse(): Iterable<RawRecord> {
+        for (const record of testRecords) {
+          yield record;
+        }
+      },
+    };
+
+    // Custom source that yields a single chunk
+    const dummySource: DataSource = {
+      async *read(): AsyncIterable<string> {
+        yield await Promise.resolve('dummy');
+      },
+      sample(): Promise<string> {
+        return Promise.resolve('dummy');
+      },
+      metadata(): { fileName: string; fileSize: number; mimeType: string } {
+        return { fileName: 'test', fileSize: 0, mimeType: 'text/plain' };
+      },
+    };
+
+    const importer = new BulkImport({
+      schema: {
+        fields: [
+          { name: 'email', type: 'email', required: true },
+          { name: 'name', type: 'string', required: true },
+          { name: 'age', type: 'number', required: false },
+        ],
+      },
+      batchSize: 2,
+      continueOnError: false,
+    });
+
+    importer.from(dummySource, oneByOneParser);
+
+    const batchSizes: number[] = [];
+    importer.on('batch:completed', (e) => {
+      batchSizes.push(e.processedCount);
+    });
+
+    const processed: RawRecord[] = [];
+    await importer.start(async (record) => {
+      processed.push(record);
+      await Promise.resolve();
+    });
+
+    // 5 records with batchSize 2 → batches of 2, 2, 1
+    expect(processed).toHaveLength(5);
+    expect(batchSizes).toHaveLength(3);
+    expect(batchSizes).toEqual([2, 2, 1]);
+
+    // After completion, batch records should be cleared (memory released)
+    const status = importer.getStatus();
+    expect(status.state).toBe('COMPLETED');
+    expect(status.progress.percentage).toBe(100);
+    expect(status.progress.processedRecords).toBe(5);
+
+    for (const batch of status.batches) {
+      expect(batch.records).toHaveLength(0);
+    }
   });
 });

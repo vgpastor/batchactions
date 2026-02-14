@@ -63,6 +63,17 @@ Strictly follow these principles in order of priority:
 4. **Clean Code** — Small functions, meaningful names, no comments that restate the code. No magic numbers or strings. Early returns over deep nesting. If code needs a comment, refactor it.
 5. **Immutability** — All types use `readonly`. Records transform through pure functions, never mutation.
 
+## Mandatory Post-Change Checklist
+
+After every implementation task, **before considering the task complete**, verify:
+
+1. **Run the full pipeline**: `npm run typecheck && npm run lint && npm run test && npm run build`
+2. **Update `todo.md`**: Mark completed items as `[x]`, add new items discovered during implementation.
+3. **Update `CLAUDE.md`**: If the change affects architecture, public API, known gaps, or technical decisions — update the relevant sections. Remove resolved gaps from "Current State & Known Gaps".
+4. **Update `README.md`**: If the change modifies or adds to the public API (new methods, new config options, new adapters), update usage examples and API reference.
+
+This checklist is non-negotiable. Documentation drift is a bug.
+
 ## Coding Conventions
 
 ### TypeScript
@@ -144,7 +155,7 @@ Everything exported from `index.ts` is public API. Changes to exports are breaki
 - **AbortController for pause/resume**: Use native `AbortController` for cancellation signals. Pause is implemented by resolving a Promise that stays pending until `resume()` is called.
 - **Typed Event Emitter**: No `any`. Each event has its own payload type via discriminated unions.
 - **Zero dependencies in domain**: The domain layer has NO external dependencies. Adapters (infrastructure) may use PapaParse, fast-xml-parser, etc.
-- **ID generation**: Use `crypto.randomUUID()` (native Node 19+ and modern browsers).
+- **ID generation**: Use `crypto.randomUUID()` (native Node 16.7+ and modern browsers).
 - **Error boundaries**: Each batch runs inside try/catch. A failing batch does not stop others when `continueOnError: true`. Consumer processor errors are captured in the record, never propagated to the engine.
 
 ## Scope Boundaries — What This Library Does NOT Do
@@ -158,20 +169,33 @@ Everything exported from `index.ts` is public API. Changes to exports are breaki
 
 ## Current State & Known Gaps
 
+Published as `@bulkimport/core@0.1.0`. CI/CD configured with GitHub Actions (lint, typecheck, test matrix Node 18/20/22, build) and npm publish via OIDC Trusted Publisher.
+
+### Implemented
+
+- Streaming batch processing — `start()` parses lazily and processes batch-by-batch, never loading all records in memory.
+- O(1) progress tracking with counters. Percentage includes both processed and failed records.
+- Memory release — `clearBatchRecords()` frees record data after each batch completes.
+- Full validation pipeline (string, number, boolean, date, email, custom validators).
+- Pause/resume/abort with AbortController.
+- Preview with sampling.
+- Domain events with typed EventBus.
+- ESLint 9 flat config + Prettier configured and enforced.
+- 41 acceptance + unit tests passing.
+
+### Known Gaps
+
 - `maxConcurrentBatches` is declared in config types but not implemented — batches process sequentially.
 - `skipEmptyRows` is declared in `SchemaDefinition` but not used by `SchemaValidator`.
-- `StateStore` port is partially used — `BulkImport` calls `saveJobState()` but not `saveProcessedRecord()` or query methods. In-memory arrays in `BulkImport` are the source of truth during execution.
-- `parseRecords()` loads all records into memory before batching — not true streaming. The spec requires streaming.
-- `buildProgress().percentage` only counts `processed` records, not `failed`, so imports with failures never reach 100%.
-- No retry mechanism for failed records.
-- `package.json` is missing `dependencies` (`papaparse`) and `devDependencies` (`vitest`, `tsup`, `typescript`, `@types/node`).
+- `StateStore` port is partially used — `BulkImport` calls `saveJobState()` but not `saveProcessedRecord()` or query methods. In-memory counters are the source of truth during execution.
 - `BulkImport.restore()` static method not implemented (resume from persisted state after crash).
 - `application/usecases/` layer not extracted — all orchestration lives in `BulkImport` facade.
+- `markRecordProcessed` in `Record.ts` is no longer used by `BulkImport` after the streaming refactor — potential dead code or keep as public API for consumers managing records manually.
 - Missing parsers: `JsonParser`, `XmlParser`.
 - Missing sources: `FilePathSource`, `StreamSource`, `UrlSource`.
 - Missing state stores: `FileStateStore`.
-- No linting/formatting configured (ESLint, Prettier/Biome).
+- No retry mechanism for failed records.
 - No JSDoc on public API.
-- No README.
+- No CHANGELOG.
 
 See `todo.md` for the full prioritized backlog.
