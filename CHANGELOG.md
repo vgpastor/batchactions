@@ -22,6 +22,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - 21 `JsonParser` unit tests + 5 acceptance tests.
 - 9 `FilePathSource` unit tests (including integration with BulkImport).
 - 8 `StreamSource` unit tests (including integration with BulkImport).
+- `BulkImport.generateTemplate(schema)` — static method that generates a CSV header line from schema field names.
+- JSDoc on all public API types, interfaces, methods, and ports.
 - Documentation checklist in `CONTRIBUTING.md` for pull requests.
 - Breaking changes policy with deprecation-first protocol in `CONTRIBUTING.md`.
 

@@ -193,7 +193,10 @@ Published as `@bulkimport/core@0.1.0`. CI/CD configured with GitHub Actions (lin
 - Domain events with typed EventBus.
 - `skipEmptyRows` in `SchemaValidator` — filters empty rows before validation in both `start()` and `preview()`.
 - ESLint 9 flat config + Prettier configured and enforced.
-- 143 acceptance + unit tests passing (including edge cases, schema-advanced features, multiple parsers/sources).
+- JSDoc on all public API types, interfaces, methods, and ports.
+- `BulkImport.generateTemplate(schema)` — generate CSV header from schema.
+- CHANGELOG maintained with Keep a Changelog format.
+- 146 acceptance + unit tests passing (including edge cases, schema-advanced features, multiple parsers/sources).
 
 ### Known Gaps
 
@@ -205,7 +208,5 @@ Published as `@bulkimport/core@0.1.0`. CI/CD configured with GitHub Actions (lin
 - Missing sources: `UrlSource`.
 - Missing state stores: `FileStateStore`.
 - No retry mechanism for failed records.
-- No JSDoc on public API.
-- No CHANGELOG.
 
 See `todo.md` for the full prioritized backlog.

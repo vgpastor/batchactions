@@ -1,6 +1,7 @@
 import type { ImportSummary, ImportProgress } from '../model/ImportJob.js';
 import type { ProcessedRecord } from '../model/Record.js';
 
+/** Emitted when `start()` is called. `totalRecords` is `0` (unknown in streaming mode). */
 export interface ImportStartedEvent {
   readonly type: 'import:started';
   readonly jobId: string;
@@ -9,6 +10,7 @@ export interface ImportStartedEvent {
   readonly timestamp: number;
 }
 
+/** Emitted when all records have been processed successfully. */
 export interface ImportCompletedEvent {
   readonly type: 'import:completed';
   readonly jobId: string;
@@ -16,6 +18,7 @@ export interface ImportCompletedEvent {
   readonly timestamp: number;
 }
 
+/** Emitted when `pause()` is called. */
 export interface ImportPausedEvent {
   readonly type: 'import:paused';
   readonly jobId: string;
@@ -23,6 +26,7 @@ export interface ImportPausedEvent {
   readonly timestamp: number;
 }
 
+/** Emitted when `abort()` is called. */
 export interface ImportAbortedEvent {
   readonly type: 'import:aborted';
   readonly jobId: string;
@@ -30,6 +34,7 @@ export interface ImportAbortedEvent {
   readonly timestamp: number;
 }
 
+/** Emitted when the import fails due to an unrecoverable error. */
 export interface ImportFailedEvent {
   readonly type: 'import:failed';
   readonly jobId: string;
@@ -37,6 +42,7 @@ export interface ImportFailedEvent {
   readonly timestamp: number;
 }
 
+/** Emitted after each batch completes with updated progress counters. */
 export interface ImportProgressEvent {
   readonly type: 'import:progress';
   readonly jobId: string;
@@ -44,6 +50,7 @@ export interface ImportProgressEvent {
   readonly timestamp: number;
 }
 
+/** Emitted when a batch begins processing. */
 export interface BatchStartedEvent {
   readonly type: 'batch:started';
   readonly jobId: string;
@@ -53,6 +60,7 @@ export interface BatchStartedEvent {
   readonly timestamp: number;
 }
 
+/** Emitted when a batch finishes processing (may include failed records). */
 export interface BatchCompletedEvent {
   readonly type: 'batch:completed';
   readonly jobId: string;
@@ -64,6 +72,7 @@ export interface BatchCompletedEvent {
   readonly timestamp: number;
 }
 
+/** Emitted when a batch fails entirely (e.g. `continueOnError: false`). */
 export interface BatchFailedEvent {
   readonly type: 'batch:failed';
   readonly jobId: string;
@@ -73,6 +82,7 @@ export interface BatchFailedEvent {
   readonly timestamp: number;
 }
 
+/** Emitted for each record that is successfully processed. */
 export interface RecordProcessedEvent {
   readonly type: 'record:processed';
   readonly jobId: string;
@@ -81,6 +91,7 @@ export interface RecordProcessedEvent {
   readonly timestamp: number;
 }
 
+/** Emitted for each record that fails validation or processing. */
 export interface RecordFailedEvent {
   readonly type: 'record:failed';
   readonly jobId: string;
@@ -91,6 +102,7 @@ export interface RecordFailedEvent {
   readonly timestamp: number;
 }
 
+/** Discriminated union of all domain events. */
 export type DomainEvent =
   | ImportStartedEvent
   | ImportCompletedEvent
@@ -104,6 +116,8 @@ export type DomainEvent =
   | RecordProcessedEvent
   | RecordFailedEvent;
 
+/** String literal union of all event type names. */
 export type EventType = DomainEvent['type'];
 
+/** Extract the payload type for a specific event type. */
 export type EventPayload<T extends EventType> = Extract<DomainEvent, { type: T }>;

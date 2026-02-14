@@ -6,6 +6,7 @@ export interface JsonParserOptions {
   readonly format?: 'array' | 'ndjson' | 'auto';
 }
 
+/** JSON parser adapter supporting JSON array and NDJSON formats with auto-detection. Zero dependencies. */
 export class JsonParser implements SourceParser {
   private readonly format: 'array' | 'ndjson' | 'auto';
 

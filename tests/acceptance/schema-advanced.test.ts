@@ -397,3 +397,39 @@ describe('Schema advanced: combined features', () => {
     expect(importer.getFailedRecords()[0]?.errors[0]?.code).toBe('DUPLICATE_VALUE');
   });
 });
+
+// ============================================================
+// Generate template
+// ============================================================
+describe('Schema advanced: generateTemplate', () => {
+  it('should generate a CSV header from schema fields', () => {
+    const template = BulkImport.generateTemplate({
+      fields: [
+        { name: 'email', type: 'email', required: true },
+        { name: 'name', type: 'string', required: true },
+        { name: 'age', type: 'number', required: false },
+      ],
+    });
+
+    expect(template).toBe('email,name,age');
+  });
+
+  it('should use canonical names regardless of aliases', () => {
+    const template = BulkImport.generateTemplate({
+      fields: [
+        { name: 'email', type: 'email', required: true, aliases: ['correo', 'mail'] },
+        { name: 'documentNumber', type: 'string', required: true, aliases: ['DNI', 'Documento'] },
+      ],
+    });
+
+    expect(template).toBe('email,documentNumber');
+  });
+
+  it('should handle single field', () => {
+    const template = BulkImport.generateTemplate({
+      fields: [{ name: 'id', type: 'string', required: true }],
+    });
+
+    expect(template).toBe('id');
+  });
+});

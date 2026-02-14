@@ -10,6 +10,7 @@ export interface FilePathSourceOptions {
   readonly highWaterMark?: number;
 }
 
+/** Data source that streams from a local file path using `createReadStream`. Node.js only. */
 export class FilePathSource implements DataSource {
   private readonly filePath: string;
   private readonly encoding: BufferEncoding;

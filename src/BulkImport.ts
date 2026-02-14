@@ -15,14 +15,30 @@ import { SchemaValidator } from './domain/services/SchemaValidator.js';
 import { EventBus } from './application/EventBus.js';
 import { InMemoryStateStore } from './infrastructure/state/InMemoryStateStore.js';
 
+/** Configuration for a bulk import job. */
 export interface BulkImportConfig {
+  /** Schema defining field types, validation rules, aliases, and uniqueness constraints. */
   readonly schema: SchemaDefinition;
+  /** Number of records per batch. Default: `100`. */
   readonly batchSize?: number;
+  /** Maximum concurrent batches (not yet implemented — batches run sequentially). */
   readonly maxConcurrentBatches?: number;
+  /** When `true`, processing continues after a record fails validation or processing. Default: `false`. */
   readonly continueOnError?: boolean;
+  /** Persistence adapter for job state. Default: `InMemoryStateStore`. */
   readonly stateStore?: StateStore;
 }
 
+/**
+ * Facade that orchestrates the full import lifecycle: parse → validate → batch → process.
+ *
+ * @example
+ * ```typescript
+ * const importer = new BulkImport({ schema: { fields: [...] }, batchSize: 500 });
+ * importer.from(new BufferSource(csv), new CsvParser());
+ * await importer.start(async (record) => { await db.insert(record); });
+ * ```
+ */
 export class BulkImport {
   private readonly config: Required<Pick<BulkImportConfig, 'batchSize' | 'continueOnError'>> & BulkImportConfig;
   private readonly validator: SchemaValidator;
@@ -57,17 +73,41 @@ export class BulkImport {
     this.jobId = crypto.randomUUID();
   }
 
+  /**
+   * Generate a CSV header template from a schema definition.
+   *
+   * Returns a single CSV line with all field names, useful for letting
+   * frontends download a template that stays in sync with the schema.
+   *
+   * @example
+   * ```typescript
+   * const csv = BulkImport.generateTemplate(schema);
+   * // → "email,name,age"
+   * ```
+   */
+  static generateTemplate(schema: SchemaDefinition): string {
+    return schema.fields.map((f) => f.name).join(',');
+  }
+
+  /** Set the data source and parser. Returns `this` for chaining. */
   from(source: DataSource, parser: SourceParser): this {
     this.source = source;
     this.parser = parser;
     return this;
   }
 
+  /** Subscribe to a lifecycle event. Returns `this` for chaining. */
   on<T extends EventType>(type: T, handler: (event: EventPayload<T>) => void): this {
     this.eventBus.on(type, handler);
     return this;
   }
 
+  /**
+   * Validate a sample of records without processing them.
+   *
+   * Alias resolution and transforms are applied before validation.
+   * Returns valid/invalid records, total sampled, and detected column names.
+   */
   async preview(maxRecords = 10): Promise<PreviewResult> {
     this.assertSourceConfigured();
     this.transitionTo('PREVIEWING');
@@ -105,6 +145,14 @@ export class BulkImport {
     };
   }
 
+  /**
+   * Begin processing all records through the provided callback.
+   *
+   * Records are parsed lazily (streamed) and processed batch-by-batch.
+   * Memory is released after each batch completes.
+   *
+   * @throws Error if source/parser not configured or import already started.
+   */
   async start(processor: RecordProcessorFn): Promise<void> {
     this.assertSourceConfigured();
     this.assertCanStart();
@@ -189,6 +237,7 @@ export class BulkImport {
     await this.saveState();
   }
 
+  /** Pause processing after the current record completes. */
   async pause(): Promise<void> {
     if (this.status !== 'PROCESSING') {
       throw new Error(`Cannot pause import from status '${this.status}'`);
@@ -208,6 +257,7 @@ export class BulkImport {
     await this.saveState();
   }
 
+  /** Resume a paused import. */
   resume(): void {
     if (this.status === 'ABORTED') {
       throw new Error('Cannot resume an aborted import');
@@ -223,6 +273,7 @@ export class BulkImport {
     }
   }
 
+  /** Cancel the import permanently. Terminal state — cannot be resumed. */
   async abort(): Promise<void> {
     if (this.status !== 'PROCESSING' && this.status !== 'PAUSED') {
       throw new Error(`Cannot abort import from status '${this.status}'`);
@@ -247,6 +298,7 @@ export class BulkImport {
     await this.saveState();
   }
 
+  /** Get current state, progress counters, and batch details. */
   getStatus(): { state: ImportStatus; progress: ImportProgress; batches: readonly Batch[] } {
     return {
       state: this.status,
@@ -255,14 +307,17 @@ export class BulkImport {
     };
   }
 
+  /** Get all records that failed validation or processing. */
   getFailedRecords(): readonly ProcessedRecord[] {
     return this.failedRecordsAccum;
   }
 
+  /** Get records not yet processed. Returns `[]` in streaming mode (records are not retained). */
   getPendingRecords(): readonly ProcessedRecord[] {
     return [];
   }
 
+  /** Get the unique job identifier (UUID). */
   getJobId(): string {
     return this.jobId;
   }

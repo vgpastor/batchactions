@@ -2,6 +2,7 @@ import Papa from 'papaparse';
 import type { SourceParser, ParserOptions } from '../../domain/ports/SourceParser.js';
 import type { RawRecord } from '../../domain/model/Record.js';
 
+/** CSV parser adapter using PapaParse. Supports auto-delimiter detection and header mapping. */
 export class CsvParser implements SourceParser {
   private readonly options: ParserOptions;
 

@@ -11,6 +11,7 @@ export interface StreamSourceOptions {
   readonly encoding?: BufferEncoding;
 }
 
+/** Data source that wraps an `AsyncIterable` or `ReadableStream`. Ideal for Express/Fastify uploads. */
 export class StreamSource implements DataSource {
   private readonly stream: AsyncIterable<string | Buffer> | ReadableStream<string | Buffer>;
   private readonly meta: SourceMetadata;

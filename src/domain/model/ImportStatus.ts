@@ -1,3 +1,14 @@
+/**
+ * Finite state machine for import lifecycle.
+ *
+ * Valid transitions:
+ * - `CREATED` → `PREVIEWING` | `PROCESSING`
+ * - `PREVIEWING` → `PREVIEWED` | `FAILED`
+ * - `PREVIEWED` → `PROCESSING`
+ * - `PROCESSING` → `PAUSED` | `COMPLETED` | `ABORTED` | `FAILED`
+ * - `PAUSED` → `PROCESSING` | `ABORTED`
+ * - `COMPLETED`, `ABORTED`, `FAILED` → (terminal)
+ */
 export const ImportStatus = {
   CREATED: 'CREATED',
   PREVIEWING: 'PREVIEWING',
@@ -22,6 +33,7 @@ const VALID_TRANSITIONS: Record<ImportStatus, readonly ImportStatus[]> = {
   [ImportStatus.FAILED]: [],
 };
 
+/** Check whether a state transition is valid according to the import lifecycle FSM. */
 export function canTransition(from: ImportStatus, to: ImportStatus): boolean {
   return VALID_TRANSITIONS[from].includes(to);
 }

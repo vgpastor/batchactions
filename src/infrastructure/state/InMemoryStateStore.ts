@@ -2,6 +2,7 @@ import type { StateStore, BatchState } from '../../domain/ports/StateStore.js';
 import type { ImportJobState, ImportProgress } from '../../domain/model/ImportJob.js';
 import type { ProcessedRecord } from '../../domain/model/Record.js';
 
+/** Non-persistent in-memory state store. Used as the default when no custom StateStore is provided. */
 export class InMemoryStateStore implements StateStore {
   private jobs = new Map<string, ImportJobState>();
   private records = new Map<string, ProcessedRecord[]>();

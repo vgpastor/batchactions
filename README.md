@@ -382,6 +382,7 @@ const importer = new BulkImport({
 
 | Method | Description |
 |---|---|
+| `static generateTemplate(schema)` | Generate a CSV header line from schema field names. |
 | `from(source, parser)` | Set the data source and parser. Returns `this` for chaining. |
 | `on(event, handler)` | Subscribe to a lifecycle event. Returns `this`. |
 | `preview(maxRecords?)` | Validate a sample of records without processing. |

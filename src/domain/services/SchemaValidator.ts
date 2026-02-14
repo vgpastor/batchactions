@@ -6,6 +6,12 @@ import { validResult, invalidResult } from '../model/ValidationResult.js';
 
 const EMAIL_PATTERN = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
 
+/**
+ * Domain service that validates records against a schema definition.
+ *
+ * Handles type checking, required fields, patterns, custom validators,
+ * alias resolution, array splitting, transforms, defaults, and uniqueness.
+ */
 export class SchemaValidator {
   private readonly aliasMap: ReadonlyMap<string, string>;
 
@@ -13,6 +19,7 @@ export class SchemaValidator {
     this.aliasMap = this.buildAliasMap();
   }
 
+  /** Validate a record against all field definitions. Returns errors for each failing field. */
   validate(record: RawRecord): ValidationResult {
     const errors: ValidationError[] = [];
 
@@ -39,6 +46,7 @@ export class SchemaValidator {
     return errors.length === 0 ? validResult() : invalidResult(errors);
   }
 
+  /** Check unique field constraints against a shared set of seen values. Cross-batch, case-insensitive for strings. */
   validateUniqueness(
     record: RawRecord,
     seenValues: Map<string, Set<unknown>>,
@@ -75,6 +83,7 @@ export class SchemaValidator {
     return errors;
   }
 
+  /** Map aliased or differently-cased column names to their canonical field names. */
   resolveAliases(record: RawRecord): RawRecord {
     if (this.aliasMap.size === 0) return record;
 
@@ -92,6 +101,7 @@ export class SchemaValidator {
     return resolved as RawRecord;
   }
 
+  /** Apply array splitting, custom transforms, and default values to a record. */
   applyTransforms(record: RawRecord): RawRecord {
     const transformed: Record<string, unknown> = { ...record };
 
@@ -115,20 +125,24 @@ export class SchemaValidator {
     return transformed as RawRecord;
   }
 
+  /** Check whether every value in the record is empty (`undefined`, `null`, or `''`). */
   isEmptyRow(record: RawRecord): boolean {
     return Object.values(record).every(
       (v) => v === undefined || v === null || v === '',
     );
   }
 
+  /** Whether the schema is configured to skip rows where all values are empty. */
   get skipEmptyRows(): boolean {
     return this.schema.skipEmptyRows ?? false;
   }
 
+  /** Whether any field defines explicit aliases (beyond canonical name resolution). */
   get hasAliases(): boolean {
     return this.aliasMap.size > this.schema.fields.length;
   }
 
+  /** Whether the schema declares any unique field constraints. */
   get hasUniqueFields(): boolean {
     return (this.schema.uniqueFields ?? []).length > 0;
   }

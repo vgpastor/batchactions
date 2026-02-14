@@ -1,3 +1,4 @@
+/** Possible statuses for a batch during processing. */
 export const BatchStatus = {
   PENDING: 'PENDING',
   PROCESSING: 'PROCESSING',

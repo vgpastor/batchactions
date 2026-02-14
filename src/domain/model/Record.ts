@@ -1,20 +1,30 @@
 import type { ValidationError } from './ValidationResult.js';
 
+/** Lifecycle status of a record during import processing. */
 export type RecordStatus = 'valid' | 'invalid' | 'processed' | 'failed' | 'pending';
 
+/** A key-value record as parsed from the source data. */
 export interface RawRecord {
   readonly [key: string]: unknown;
 }
 
+/** A record enriched with validation/processing status and errors. */
 export interface ProcessedRecord {
+  /** Zero-based index of this record in the source data. */
   readonly index: number;
+  /** Original key-value data as parsed from the source. */
   readonly raw: RawRecord;
+  /** Transformed data after alias resolution and transforms. */
   readonly parsed: RawRecord;
+  /** Current lifecycle status. */
   readonly status: RecordStatus;
+  /** Validation errors (populated when `status` is `'invalid'`). */
   readonly errors: readonly ValidationError[];
+  /** Error message from the processor callback (populated when `status` is `'failed'`). */
   readonly processingError?: string;
 }
 
+/** Create a new record in `pending` status. */
 export function createPendingRecord(index: number, raw: RawRecord): ProcessedRecord {
   return {
     index,
@@ -25,14 +35,17 @@ export function createPendingRecord(index: number, raw: RawRecord): ProcessedRec
   };
 }
 
+/** Transition a record to `valid` status with transformed data. */
 export function markRecordValid(record: ProcessedRecord, parsed: RawRecord): ProcessedRecord {
   return { ...record, parsed, status: 'valid', errors: [] };
 }
 
+/** Transition a record to `invalid` status with validation errors. */
 export function markRecordInvalid(record: ProcessedRecord, errors: readonly ValidationError[]): ProcessedRecord {
   return { ...record, status: 'invalid', errors };
 }
 
+/** Transition a record to `failed` status with a processing error. */
 export function markRecordFailed(record: ProcessedRecord, error: string): ProcessedRecord {
   return { ...record, status: 'failed', processingError: error };
 }

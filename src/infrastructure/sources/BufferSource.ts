@@ -1,5 +1,6 @@
 import type { DataSource, SourceMetadata } from '../../domain/ports/DataSource.js';
 
+/** Data source that reads from an in-memory string or Buffer. */
 export class BufferSource implements DataSource {
   private readonly content: string;
   private readonly meta: SourceMetadata;
