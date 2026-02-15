@@ -135,8 +135,8 @@ npm run build    # tsup → dist/ (ESM + CJS + .d.ts)
 - Dual format: ESM (`.mjs`) + CJS (`.cjs`) with TypeScript declarations.
 - Only `dist/` is published (`"files": ["dist"]`).
 - Path aliases (`@domain/*`, `@application/*`, `@infrastructure/*`) are for dev/test only — not used in source code (all imports are relative).
-- Target: ES2020 for maximum compatibility (Node 16.7+, modern browsers).
-- `crypto.randomUUID()` is the minimum Node.js version constraint (stable since 16.7).
+- Target: ES2020 for maximum compatibility (Node 20+, modern browsers).
+- `globalThis.crypto.randomUUID()` requires Node.js >= 20 (global `crypto` stable since Node 20).
 
 ## Public API Surface
 
@@ -163,7 +163,7 @@ Key rule: **NEVER remove or change public API directly.** Always deprecate first
 - **AbortController for pause/resume**: Use native `AbortController` for cancellation signals. Pause is implemented by resolving a Promise that stays pending until `resume()` is called.
 - **Typed Event Emitter**: No `any`. Each event has its own payload type via discriminated unions.
 - **Zero dependencies in domain**: The domain layer has NO external dependencies. Adapters (infrastructure) may use PapaParse, fast-xml-parser, etc.
-- **ID generation**: Use `crypto.randomUUID()` (native Node 16.7+ and modern browsers).
+- **ID generation**: Use `crypto.randomUUID()` (native Node 20+ and modern browsers).
 - **Error boundaries**: Each batch runs inside try/catch. A failing batch does not stop others when `continueOnError: true`. Consumer processor errors are captured in the record, never propagated to the engine.
 
 ## Scope Boundaries — What This Library Does NOT Do

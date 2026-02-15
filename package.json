@@ -50,7 +50,7 @@
     "url": "https://github.com/vgpastor/bulkimport"
   },
   "engines": {
-    "node": ">=16.7.0"
+    "node": ">=20.0.0"
   },
   "workspaces": [
     "packages/*"
