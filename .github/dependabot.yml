@@ -1,0 +1,23 @@
+version: 2
+updates:
+  - package-ecosystem: npm
+    directory: /
+    schedule:
+      interval: weekly
+    ignore:
+      # tar is a transitive devDependency of sqlite3 (used only for tests).
+      # sqlite3 → node-gyp → tar@6.x — no fix available upstream.
+      # tar is only executed during npm install (native compilation), never at runtime.
+      - dependency-name: tar
+        update-types:
+          - version-update:semver-major
+
+  - package-ecosystem: npm
+    directory: /packages/state-sequelize
+    schedule:
+      interval: weekly
+
+  - package-ecosystem: github-actions
+    directory: /
+    schedule:
+      interval: weekly
