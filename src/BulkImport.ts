@@ -630,16 +630,16 @@ export class BulkImport {
     processedCount?: number,
     failedCount?: number,
   ): void {
-    this.batches = this.batches.map((b) =>
-      b.id === batchId
-        ? {
-            ...b,
-            status,
-            processedCount: processedCount ?? b.processedCount,
-            failedCount: failedCount ?? b.failedCount,
-          }
-        : b,
-    );
+    const pos = this.batchIndexById.get(batchId);
+    if (pos === undefined) return;
+    const batch = this.batches[pos];
+    if (!batch) return;
+    this.batches[pos] = {
+      ...batch,
+      status,
+      processedCount: processedCount ?? batch.processedCount,
+      failedCount: failedCount ?? batch.failedCount,
+    };
   }
 
   private transitionTo(newStatus: ImportStatus): void {

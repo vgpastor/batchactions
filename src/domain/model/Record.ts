@@ -49,3 +49,8 @@ export function markRecordInvalid(record: ProcessedRecord, errors: readonly Vali
 export function markRecordFailed(record: ProcessedRecord, error: string): ProcessedRecord {
   return { ...record, status: 'failed', processingError: error };
 }
+
+/** Check whether every value in a raw record is empty (`undefined`, `null`, or `''`). */
+export function isEmptyRow(record: RawRecord): boolean {
+  return Object.values(record).every((v) => v === undefined || v === null || v === '');
+}

@@ -11,9 +11,22 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 - **BREAKING**: `getFailedRecords()` is now async (returns `Promise<readonly ProcessedRecord[]>`). Failed records are no longer accumulated in memory — they are delegated to the configured `StateStore`, eliminating unbounded memory growth for imports with high failure rates.
 - **Performance**: Concurrent batch pool (`activeBatches`) replaced from `Array` to `Set<Promise>` for O(1) add/delete instead of O(n) `indexOf` + `splice`.
-- **Performance**: Batch lookup in `processStreamBatch` uses `batchIndexById` Map for O(1) access instead of `findIndex`.
+- **Performance**: Batch lookup in `processStreamBatch` and `updateBatchStatus` uses `batchIndexById` Map for O(1) access instead of `findIndex`/`.map()`.
 - **Performance**: `InMemoryStateStore.saveProcessedRecord()` uses `Map<number, ProcessedRecord>` internally for O(1) upsert instead of O(n) `findIndex`.
 - **Performance**: `FileStateStore.saveProcessedRecord()` uses an in-memory Map cache per job for O(1) upsert, flushed to disk after each write. Eliminates repeated full-array scans.
+- **Refactor**: `isEmptyRow()` consolidated into a single function in `Record.ts`. CsvParser and SchemaValidator now share the same implementation. Exported as public API.
+- **Refactor**: MIME type detection extracted to shared `detectMimeType()` utility. Used by `UrlSource` and `FilePathSource`.
+- **Resilience**: `EventBus.emit()` now wraps handler calls in try/catch — a throwing handler no longer prevents other handlers from executing or disrupts the import pipeline.
+
+### Removed
+
+- `updateBatch()` function from `Batch.ts` — was exported but never used anywhere in the codebase.
+
+### Added
+
+- `isEmptyRow()` function exported from public API (`Record.ts`).
+- 14 new unit tests: BufferSource (8), StreamSource ReadableStream path (3), EventBus error handling (3).
+- 217 total tests (was 203).
 
 ## [0.3.0] - 2026-02-15
 

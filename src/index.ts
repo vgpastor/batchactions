@@ -13,6 +13,7 @@ export type {
   PreviewResult,
 } from './domain/model/ImportJob.js';
 export type { ProcessedRecord, RawRecord, RecordStatus } from './domain/model/Record.js';
+export { isEmptyRow } from './domain/model/Record.js';
 export type { Batch } from './domain/model/Batch.js';
 export type { ValidationResult, ValidationError, ValidationErrorCode } from './domain/model/ValidationResult.js';
 export { ImportStatus } from './domain/model/ImportStatus.js';

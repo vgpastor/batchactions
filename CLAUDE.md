@@ -196,13 +196,14 @@ Published as `@bulkimport/core@0.3.0`. CI/CD configured with GitHub Actions (lin
 - Unique field duplicate detection — cross-batch tracking via `seenUniqueValues` Map, case-insensitive for strings.
 - Pause/resume/abort with AbortController.
 - Preview with sampling.
-- Domain events with typed EventBus.
-- `skipEmptyRows` in `SchemaValidator` — filters empty rows before validation in both `start()` and `preview()`.
+- Domain events with typed EventBus — handler errors are isolated (try/catch in `emit()`), one broken subscriber cannot disrupt the pipeline.
+- `skipEmptyRows` — shared `isEmptyRow()` function in `Record.ts`, used by SchemaValidator, CsvParser, and BulkImport.
+- Shared `detectMimeType()` utility — used by UrlSource and FilePathSource.
 - ESLint 9 flat config + Prettier configured and enforced.
 - JSDoc on all public API types, interfaces, methods, and ports.
 - `BulkImport.generateTemplate(schema)` — generate CSV header from schema.
 - CHANGELOG maintained with Keep a Changelog format.
-- 203 acceptance + unit tests passing (including concurrency, state persistence, restore, XML import, edge cases).
+- 217 acceptance + unit tests passing (including concurrency, state persistence, restore, XML import, edge cases).
 - npm workspaces configured for monorepo subpackages (`packages/*`).
 - Built-in parsers: `CsvParser`, `JsonParser`, `XmlParser`.
 - Built-in sources: `BufferSource`, `FilePathSource`, `StreamSource`, `UrlSource`.
