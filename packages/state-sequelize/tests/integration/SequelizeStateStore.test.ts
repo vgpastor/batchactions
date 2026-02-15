@@ -27,7 +27,11 @@ function createJobState(overrides?: Partial<ImportJobState>): ImportJobState {
   };
 }
 
-function createRecord(index: number, status: ProcessedRecord['status'], extras?: Partial<ProcessedRecord>): ProcessedRecord {
+function createRecord(
+  index: number,
+  status: ProcessedRecord['status'],
+  extras?: Partial<ProcessedRecord>,
+): ProcessedRecord {
   return {
     index,
     raw: { email: `user${index}@test.com`, name: `User ${index}` },
@@ -189,9 +193,13 @@ describe('SequelizeStateStore', () => {
     it('should return records with failed or invalid status', async () => {
       await store.saveProcessedRecord('job-001', 'b1', createRecord(0, 'processed'));
       await store.saveProcessedRecord('job-001', 'b1', createRecord(1, 'failed', { processingError: 'DB error' }));
-      await store.saveProcessedRecord('job-001', 'b1', createRecord(2, 'invalid', {
-        errors: [{ field: 'email', message: 'Invalid', code: 'TYPE_MISMATCH' }],
-      }));
+      await store.saveProcessedRecord(
+        'job-001',
+        'b1',
+        createRecord(2, 'invalid', {
+          errors: [{ field: 'email', message: 'Invalid', code: 'TYPE_MISMATCH' }],
+        }),
+      );
       await store.saveProcessedRecord('job-001', 'b1', createRecord(3, 'processed'));
 
       const failed = await store.getFailedRecords('job-001');

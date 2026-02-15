@@ -481,7 +481,12 @@ export class BulkImport {
     return records;
   }
 
-  private updateBatchStatus(batchId: string, status: Batch['status'], processedCount?: number, failedCount?: number): void {
+  private updateBatchStatus(
+    batchId: string,
+    status: Batch['status'],
+    processedCount?: number,
+    failedCount?: number,
+  ): void {
     this.batches = this.batches.map((b) =>
       b.id === batchId
         ? {

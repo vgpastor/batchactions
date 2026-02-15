@@ -47,10 +47,7 @@ export class SchemaValidator {
   }
 
   /** Check unique field constraints against a shared set of seen values. Cross-batch, case-insensitive for strings. */
-  validateUniqueness(
-    record: RawRecord,
-    seenValues: Map<string, Set<unknown>>,
-  ): ValidationError[] {
+  validateUniqueness(record: RawRecord, seenValues: Map<string, Set<unknown>>): ValidationError[] {
     const errors: ValidationError[] = [];
     const uniqueFields = this.schema.uniqueFields;
 
@@ -109,9 +106,13 @@ export class SchemaValidator {
       if (field.type === 'array' && transformed[field.name] !== undefined) {
         const raw = transformed[field.name];
         const separator = field.separator ?? ',';
-        transformed[field.name] = typeof raw === 'string'
-          ? raw.split(separator).map((s) => s.trim()).filter((s) => s !== '')
-          : raw;
+        transformed[field.name] =
+          typeof raw === 'string'
+            ? raw
+                .split(separator)
+                .map((s) => s.trim())
+                .filter((s) => s !== '')
+            : raw;
       }
 
       if (field.transform && transformed[field.name] !== undefined) {
@@ -127,9 +128,7 @@ export class SchemaValidator {
 
   /** Check whether every value in the record is empty (`undefined`, `null`, or `''`). */
   isEmptyRow(record: RawRecord): boolean {
-    return Object.values(record).every(
-      (v) => v === undefined || v === null || v === '',
-    );
+    return Object.values(record).every((v) => v === undefined || v === null || v === '');
   }
 
   /** Whether the schema is configured to skip rows where all values are empty. */

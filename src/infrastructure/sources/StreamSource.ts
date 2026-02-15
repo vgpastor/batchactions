@@ -18,10 +18,7 @@ export class StreamSource implements DataSource {
   private readonly encoding: BufferEncoding;
   private consumed = false;
 
-  constructor(
-    stream: AsyncIterable<string | Buffer> | ReadableStream<string | Buffer>,
-    options?: StreamSourceOptions,
-  ) {
+  constructor(stream: AsyncIterable<string | Buffer> | ReadableStream<string | Buffer>, options?: StreamSourceOptions) {
     this.stream = stream;
     this.encoding = options?.encoding ?? 'utf-8';
     this.meta = {
@@ -37,9 +34,7 @@ export class StreamSource implements DataSource {
     }
     this.consumed = true;
 
-    const iterable = this.isReadableStream(this.stream)
-      ? this.fromReadableStream(this.stream)
-      : this.stream;
+    const iterable = this.isReadableStream(this.stream) ? this.fromReadableStream(this.stream) : this.stream;
 
     for await (const chunk of iterable) {
       yield typeof chunk === 'string' ? chunk : Buffer.from(chunk).toString(this.encoding);
@@ -73,9 +68,7 @@ export class StreamSource implements DataSource {
     return typeof (stream as ReadableStream).getReader === 'function';
   }
 
-  private async *fromReadableStream(
-    stream: ReadableStream<string | Buffer>,
-  ): AsyncIterable<string | Buffer> {
+  private async *fromReadableStream(stream: ReadableStream<string | Buffer>): AsyncIterable<string | Buffer> {
     const reader = stream.getReader();
     try {
       for (;;) {

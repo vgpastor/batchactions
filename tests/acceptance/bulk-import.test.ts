@@ -203,7 +203,9 @@ describe('Test 4: Abort', () => {
     expect(status.state).toBe('ABORTED');
 
     // Attempting to resume should throw
-    expect(() => { importer.resume(); }).toThrow('Cannot resume an aborted import');
+    expect(() => {
+      importer.resume();
+    }).toThrow('Cannot resume an aborted import');
   });
 });
 

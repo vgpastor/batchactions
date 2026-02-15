@@ -30,7 +30,10 @@ export function createBatch(id: string, index: number, records: readonly Process
 }
 
 /** Update specific fields of a batch (immutable). */
-export function updateBatch(batch: Batch, updates: Partial<Pick<Batch, 'status' | 'records' | 'processedCount' | 'failedCount'>>): Batch {
+export function updateBatch(
+  batch: Batch,
+  updates: Partial<Pick<Batch, 'status' | 'records' | 'processedCount' | 'failedCount'>>,
+): Batch {
   return { ...batch, ...updates };
 }
 

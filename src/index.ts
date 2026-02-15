@@ -5,7 +5,13 @@ export type { BulkImportConfig } from './BulkImport.js';
 // Domain model
 export type { SchemaDefinition } from './domain/model/Schema.js';
 export type { FieldDefinition, FieldType, ValidationFieldResult } from './domain/model/FieldDefinition.js';
-export type { ImportJobState, ImportJobConfig, ImportProgress, ImportSummary, PreviewResult } from './domain/model/ImportJob.js';
+export type {
+  ImportJobState,
+  ImportJobConfig,
+  ImportProgress,
+  ImportSummary,
+  PreviewResult,
+} from './domain/model/ImportJob.js';
 export type { ProcessedRecord, RawRecord, RecordStatus } from './domain/model/Record.js';
 export type { Batch } from './domain/model/Batch.js';
 export type { ValidationResult, ValidationError, ValidationErrorCode } from './domain/model/ValidationResult.js';

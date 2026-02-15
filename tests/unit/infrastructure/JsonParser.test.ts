@@ -50,31 +50,23 @@ describe('JsonParser', () => {
     it('should throw for non-array JSON', () => {
       const parser = new JsonParser({ format: 'array' });
 
-      expect(() => [...parser.parse('{"key": "value"}')]).toThrow(
-        'expected a JSON array',
-      );
+      expect(() => [...parser.parse('{"key": "value"}')]).toThrow('expected a JSON array');
     });
 
     it('should throw for array with non-object items', () => {
       const parser = new JsonParser();
 
-      expect(() => [...parser.parse('[1, 2, 3]')]).toThrow(
-        'each item in the array must be a plain object',
-      );
+      expect(() => [...parser.parse('[1, 2, 3]')]).toThrow('each item in the array must be a plain object');
     });
 
     it('should throw for array with null items', () => {
       const parser = new JsonParser();
 
-      expect(() => [...parser.parse('[null]')]).toThrow(
-        'each item in the array must be a plain object',
-      );
+      expect(() => [...parser.parse('[null]')]).toThrow('each item in the array must be a plain object');
     });
 
     it('should flatten nested objects to JSON strings', () => {
-      const data = JSON.stringify([
-        { name: 'Alice', address: { city: 'Madrid', zip: '28001' } },
-      ]);
+      const data = JSON.stringify([{ name: 'Alice', address: { city: 'Madrid', zip: '28001' } }]);
 
       const parser = new JsonParser();
       const records = [...parser.parse(data)];
@@ -128,9 +120,7 @@ describe('JsonParser', () => {
     it('should throw for non-object NDJSON lines', () => {
       const parser = new JsonParser({ format: 'ndjson' });
 
-      expect(() => [...parser.parse('"just a string"')]).toThrow(
-        'each NDJSON line must be a plain object',
-      );
+      expect(() => [...parser.parse('"just a string"')]).toThrow('each NDJSON line must be a plain object');
     });
 
     it('should flatten nested objects in NDJSON', () => {

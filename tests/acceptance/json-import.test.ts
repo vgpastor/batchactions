@@ -36,9 +36,7 @@ describe('JSON import acceptance', () => {
     });
 
     expect(processed).toHaveLength(3);
-    expect(processed[0]).toEqual(
-      expect.objectContaining({ email: 'alice@test.com', name: 'Alice' }),
-    );
+    expect(processed[0]).toEqual(expect.objectContaining({ email: 'alice@test.com', name: 'Alice' }));
 
     const status = importer.getStatus();
     expect(status.state).toBe('COMPLETED');

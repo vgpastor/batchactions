@@ -164,9 +164,7 @@ describe('SchemaValidator', () => {
 
     it('should apply default values for missing fields', () => {
       const validator = new SchemaValidator({
-        fields: [
-          { name: 'role', type: 'string', required: false, defaultValue: 'user' },
-        ],
+        fields: [{ name: 'role', type: 'string', required: false, defaultValue: 'user' }],
       });
 
       const result = validator.applyTransforms({});

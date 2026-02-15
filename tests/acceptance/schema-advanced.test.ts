@@ -163,9 +163,7 @@ describe('Schema advanced: column aliases', () => {
     });
 
     expect(processed).toHaveLength(1);
-    expect(processed[0]).toEqual(
-      expect.objectContaining({ email: 'user@test.com', name: 'Alice' }),
-    );
+    expect(processed[0]).toEqual(expect.objectContaining({ email: 'user@test.com', name: 'Alice' }));
   });
 
   it('should resolve aliases in preview', async () => {
@@ -325,11 +323,7 @@ describe('Schema advanced: unique fields', () => {
   });
 
   it('should skip uniqueness check for empty values', async () => {
-    const csv = [
-      'email,name,identifier',
-      'alice@test.com,Alice,',
-      'bob@test.com,Bob,',
-    ].join('\n');
+    const csv = ['email,name,identifier', 'alice@test.com,Alice,', 'bob@test.com,Bob,'].join('\n');
 
     const importer = new BulkImport({
       schema: {
