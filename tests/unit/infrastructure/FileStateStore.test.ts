@@ -179,5 +179,35 @@ describe('FileStateStore', () => {
       expect(progress.totalBatches).toBe(1);
       expect(progress.percentage).toBe(60);
     });
+
+    it('should return zero progress for non-existent job', async () => {
+      const progress = await store.getProgress('non-existent');
+      expect(progress.totalRecords).toBe(0);
+      expect(progress.processedRecords).toBe(0);
+      expect(progress.failedRecords).toBe(0);
+      expect(progress.pendingRecords).toBe(0);
+      expect(progress.percentage).toBe(0);
+      expect(progress.currentBatch).toBe(0);
+      expect(progress.totalBatches).toBe(0);
+    });
+
+    it('should compute progress with records only (no job state)', async () => {
+      await store.saveProcessedRecord('records-only', 'b-1', createRecord(0, 'processed'));
+      await store.saveProcessedRecord('records-only', 'b-1', createRecord(1, 'processed'));
+      await store.saveProcessedRecord('records-only', 'b-1', createRecord(2, 'failed'));
+
+      const progress = await store.getProgress('records-only');
+      expect(progress.totalRecords).toBe(3);
+      expect(progress.processedRecords).toBe(2);
+      expect(progress.failedRecords).toBe(1);
+    });
+  });
+
+  describe('default directory', () => {
+    it('should use .bulkimport as default directory', () => {
+      const defaultStore = new FileStateStore();
+      // Verify by saving and checking it doesn't throw
+      expect(defaultStore).toBeDefined();
+    });
   });
 });

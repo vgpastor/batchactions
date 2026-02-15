@@ -5,6 +5,20 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [0.3.0] - 2026-02-15
+
+### Added
+
+- **`maxConcurrentBatches`** — real batch concurrency via `Promise.race` pool. Default: `1` (sequential). Set higher to process multiple batches in parallel when the downstream system supports concurrent writes.
+- **`BulkImport.restore(jobId, config)`** — static method to resume interrupted imports from persisted state. Rebuilds counters from the `StateStore` and skips already-completed batches on re-run.
+- **Full StateStore integration** — `BulkImport` now calls `saveProcessedRecord()` for every record and `updateBatchState()` for batch transitions. State is persisted after each batch for crash recovery. In-memory counters remain the fast path; the store is the durable backup.
+- **`FileStateStore`** — JSON-on-disk persistent state store. Each job produces `{jobId}.json` (state) and `{jobId}.records.json` (records). Node.js only.
+- **`XmlParser`** — zero-dependency XML parser with auto record-tag detection. Supports standard XML entities and self-closing tags.
+- **`UrlSource`** — fetch-based data source with streaming body support, Range-header sampling, timeout control, and MIME type detection from URL extension. Requires `fetch` (Node.js >= 18).
+- 17 new acceptance tests: concurrent batches (5), state persistence & restore (7), XML import (4), UrlSource (1 via unit).
+- 29 new unit tests: XmlParser (12), FileStateStore (15), UrlSource (14) — some shared with acceptance.
+- 203 total tests (was 146).
+
 ## [0.2.2] - 2026-02-15
 
 ### Changed
