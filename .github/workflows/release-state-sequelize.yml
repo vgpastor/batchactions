@@ -1,10 +1,9 @@
-name: Release Core
+name: Release state-sequelize
 
 on:
   push:
     tags:
-      - 'v*'
-      - '!state-sequelize-v*'
+      - 'state-sequelize-v*'
 
 permissions:
   contents: write
@@ -21,10 +20,11 @@ jobs:
           node-version: 22
           cache: npm
       - run: npm ci
-      - run: npm run lint
-      - run: npm run typecheck
-      - run: npm run test
       - run: npm run build
+      - run: npm test -w packages/state-sequelize
+      - name: Typecheck
+        working-directory: packages/state-sequelize
+        run: npx tsc --noEmit
 
   publish:
     name: Publish to npm
@@ -39,15 +39,22 @@ jobs:
           registry-url: https://registry.npmjs.org
       - run: npm ci
       - run: npm run build
+      - name: Build state-sequelize
+        working-directory: packages/state-sequelize
+        run: npm run build
       - name: Verify version matches tag
         run: |
-          TAG_VERSION="${GITHUB_REF#refs/tags/v}"
-          PKG_VERSION=$(node -p "require('./package.json').version")
+          TAG_VERSION="${GITHUB_REF#refs/tags/state-sequelize-v}"
+          PKG_VERSION=$(node -p "require('./packages/state-sequelize/package.json').version")
           if [ "$TAG_VERSION" != "$PKG_VERSION" ]; then
             echo "::error::Tag version ($TAG_VERSION) does not match package.json version ($PKG_VERSION)"
             exit 1
           fi
-      - run: npm publish --access public --provenance
+      - name: Publish
+        working-directory: packages/state-sequelize
+        run: npm publish --access public --provenance
+        env:
+          NODE_AUTH_TOKEN: ${{ secrets.NPM_TOKEN }}
 
   github-release:
     name: GitHub Release
@@ -61,11 +68,11 @@ jobs:
         id: notes
         run: |
           TAG="${GITHUB_REF#refs/tags/}"
-          PREV_TAG=$(git tag --sort=-creatordate | grep -v "$TAG" | head -n 1 || echo "")
+          PREV_TAG=$(git tag --sort=-creatordate | grep "state-sequelize-v" | grep -v "$TAG" | head -n 1 || echo "")
           if [ -z "$PREV_TAG" ]; then
-            NOTES=$(git log --pretty=format:"- %s" HEAD)
+            NOTES=$(git log --pretty=format:"- %s" HEAD -- packages/state-sequelize/)
           else
-            NOTES=$(git log --pretty=format:"- %s" "$PREV_TAG".."$TAG")
+            NOTES=$(git log --pretty=format:"- %s" "$PREV_TAG".."$TAG" -- packages/state-sequelize/)
           fi
           echo "notes<<EOF" >> "$GITHUB_OUTPUT"
           echo "$NOTES" >> "$GITHUB_OUTPUT"
@@ -78,7 +85,7 @@ jobs:
             ## Install
 
             ```bash
-            npm install @bulkimport/core@${{ github.ref_name }}
+            npm install @bulkimport/state-sequelize@${{ github.ref_name }}
             ```
 
             ## Changes
