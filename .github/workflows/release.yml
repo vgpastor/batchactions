@@ -37,6 +37,8 @@ jobs:
           node-version: 22
           cache: npm
           registry-url: https://registry.npmjs.org
+      - name: Upgrade npm for OIDC Trusted Publishing support
+        run: npm install -g npm@latest
       - run: npm ci
       - run: npm run build
       - name: Verify version matches tag
