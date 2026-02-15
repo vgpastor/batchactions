@@ -52,10 +52,10 @@ export class BulkImport {
   private jobId: string;
   private status: ImportStatus = 'CREATED';
   private batches: Batch[] = [];
+  private batchIndexById = new Map<string, number>();
   private totalRecords = 0;
   private processedCount = 0;
   private failedCount = 0;
-  private failedRecordsAccum: ProcessedRecord[] = [];
   private seenUniqueValues = new Map<string, Set<unknown>>();
   private startedAt?: number;
   private completedBatchIndices = new Set<number>();
@@ -113,10 +113,6 @@ export class BulkImport {
         instance.completedBatchIndices.add(batch.index);
       }
     }
-
-    // Load failed records from state store
-    const failedRecords = await stateStore.getFailedRecords(jobId);
-    instance.failedRecordsAccum = [...failedRecords];
 
     // Reset to CREATED so start() can be called
     instance.status = 'CREATED';
@@ -211,9 +207,9 @@ export class BulkImport {
     if (this.completedBatchIndices.size === 0) {
       this.processedCount = 0;
       this.failedCount = 0;
-      this.failedRecordsAccum = [];
       this.seenUniqueValues = new Map();
       this.batches = [];
+      this.batchIndexById = new Map();
       this.totalRecords = 0;
     }
 
@@ -334,9 +330,9 @@ export class BulkImport {
     };
   }
 
-  /** Get all records that failed validation or processing. */
-  getFailedRecords(): readonly ProcessedRecord[] {
-    return this.failedRecordsAccum;
+  /** Get all records that failed validation or processing. Delegates to the configured StateStore. */
+  async getFailedRecords(): Promise<readonly ProcessedRecord[]> {
+    return this.stateStore.getFailedRecords(this.jobId);
   }
 
   /** Get records not yet processed. Returns `[]` in streaming mode (records are not retained). */
@@ -400,21 +396,20 @@ export class BulkImport {
     let batchIndex = 0;
     let recordIndex = this.totalRecords;
     let batchBuffer: ProcessedRecord[] = [];
-    const activeBatches: Promise<void>[] = [];
+    const activeBatches = new Set<Promise<void>>();
 
     const enqueueBatch = async (records: ProcessedRecord[], idx: number): Promise<void> => {
       if (this.completedBatchIndices.has(idx)) return;
 
       // Wait if we've reached the concurrency limit
-      while (activeBatches.length >= maxConcurrency) {
+      while (activeBatches.size >= maxConcurrency) {
         await Promise.race(activeBatches);
       }
 
       const batchPromise: Promise<void> = this.processStreamBatch(records, idx, processor).then(() => {
-        const pos = activeBatches.indexOf(batchPromise);
-        if (pos >= 0) void activeBatches.splice(pos, 1);
+        activeBatches.delete(batchPromise);
       });
-      activeBatches.push(batchPromise);
+      activeBatches.add(batchPromise);
     };
 
     for await (const chunk of source.read()) {
@@ -440,7 +435,7 @@ export class BulkImport {
     }
 
     // Wait for all remaining batches to complete
-    await Promise.all(activeBatches);
+    await Promise.all([...activeBatches]);
 
     this.totalRecords = recordIndex;
   }
@@ -454,6 +449,7 @@ export class BulkImport {
   ): Promise<void> {
     const batchId = crypto.randomUUID();
     const batch = createBatch(batchId, batchIndex, records);
+    this.batchIndexById.set(batchId, this.batches.length);
     this.batches.push(batch);
 
     this.updateBatchStatus(batchId, 'PROCESSING');
@@ -497,7 +493,6 @@ export class BulkImport {
       if (allErrors.length > 0) {
         const invalidRecord = markRecordInvalid(record, allErrors);
         this.failedCount++;
-        this.failedRecordsAccum.push(invalidRecord);
         failedCount++;
 
         await this.stateStore.saveProcessedRecord(this.jobId, batchId, invalidRecord);
@@ -550,7 +545,6 @@ export class BulkImport {
       } catch (error) {
         const failedRecord = markRecordFailed(validRecord, error instanceof Error ? error.message : String(error));
         this.failedCount++;
-        this.failedRecordsAccum.push(failedRecord);
         failedCount++;
 
         await this.stateStore.saveProcessedRecord(this.jobId, batchId, failedRecord);
@@ -581,9 +575,9 @@ export class BulkImport {
       failedCount,
     });
 
-    // Clear records from batch to release memory
-    const batchPos = this.batches.findIndex((b) => b.id === batchId);
-    if (batchPos >= 0) {
+    // Clear records from batch to release memory — O(1) via index map
+    const batchPos = this.batchIndexById.get(batchId);
+    if (batchPos !== undefined) {
       const currentBatch = this.batches[batchPos];
       if (currentBatch) {
         this.batches[batchPos] = clearBatchRecords(currentBatch);

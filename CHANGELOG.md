@@ -5,6 +5,16 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [Unreleased]
+
+### Changed
+
+- **BREAKING**: `getFailedRecords()` is now async (returns `Promise<readonly ProcessedRecord[]>`). Failed records are no longer accumulated in memory — they are delegated to the configured `StateStore`, eliminating unbounded memory growth for imports with high failure rates.
+- **Performance**: Concurrent batch pool (`activeBatches`) replaced from `Array` to `Set<Promise>` for O(1) add/delete instead of O(n) `indexOf` + `splice`.
+- **Performance**: Batch lookup in `processStreamBatch` uses `batchIndexById` Map for O(1) access instead of `findIndex`.
+- **Performance**: `InMemoryStateStore.saveProcessedRecord()` uses `Map<number, ProcessedRecord>` internally for O(1) upsert instead of O(n) `findIndex`.
+- **Performance**: `FileStateStore.saveProcessedRecord()` uses an in-memory Map cache per job for O(1) upsert, flushed to disk after each write. Eliminates repeated full-array scans.
+
 ## [0.3.0] - 2026-02-15
 
 ### Added

@@ -2,7 +2,7 @@
 
 Backlog de tareas pendientes. Las fases completadas se han eliminado para mantener el fichero limpio.
 
-Fases completadas: 1 (Foundation), 2 (Happy Path), 3 (Validación), 4 (Control de flujo), 5 (Error handling), 6 (Persistencia de estado), 7 (Preview), 8 (Fuentes de datos), 9 (Eventos), 10 (Schema avanzado), 12 (Hardening), 13 (Publicación).
+Fases completadas: 1 (Foundation), 2 (Happy Path), 3 (Validación), 4 (Control de flujo), 5 (Error handling), 6 (Persistencia de estado), 7 (Preview), 8 (Fuentes de datos), 9 (Eventos), 10 (Schema avanzado), 12 (Hardening), 13 (Publicación), 14 (Performance & Memory).
 
 ---
 
@@ -19,3 +19,5 @@ Fases completadas: 1 (Foundation), 2 (Happy Path), 3 (Validación), 4 (Control d
 - [ ] Extraer use cases de `BulkImport` facade a `application/usecases/` (CreateImportJob, StartImport, PauseImport, etc.)
 - [ ] Extraer lógica de batching como domain service reutilizable
 - [ ] Retry mechanism para registros fallidos
+- [ ] Eliminar duplicación de `isEmptyRow` (3 implementaciones: SchemaValidator × 2, CsvParser)
+- [ ] Extraer detección de MIME type a utilidad compartida (duplicada en UrlSource y FilePathSource)
