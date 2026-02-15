@@ -5,6 +5,14 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [0.2.2] - 2026-02-15
+
+### Changed
+
+- **BREAKING**: Minimum Node.js version raised from 16.7 to 20.0 (`engines.node >= 20.0.0`). Node 18 is EOL and does not expose `globalThis.crypto` by default.
+- CI: release workflows upgrade npm for OIDC Trusted Publishing support (requires npm >= 11.5.1).
+- CI: dropped Node 18 from test matrix.
+
 ## [0.2.1] - 2026-02-15
 
 ### Changed
