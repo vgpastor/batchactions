@@ -36,9 +36,7 @@ describe('import:started deferred emission', () => {
     await promise;
 
     expect(handler).toHaveBeenCalledOnce();
-    expect(handler).toHaveBeenCalledWith(
-      expect.objectContaining({ type: 'import:started' }),
-    );
+    expect(handler).toHaveBeenCalledWith(expect.objectContaining({ type: 'import:started' }));
   });
 
   it('should still deliver import:started to handlers registered before start()', async () => {
@@ -149,9 +147,7 @@ describe('generateTemplate with example rows', () => {
   it('should generate custom type example values', () => {
     const template = BulkImport.generateTemplate(
       {
-        fields: [
-          { name: 'nif', type: 'custom', required: true },
-        ],
+        fields: [{ name: 'nif', type: 'custom', required: true }],
       },
       { exampleRows: 1 },
     );
@@ -249,9 +245,7 @@ describe('onAny wildcard event subscription', () => {
     expect(specificHandler).toHaveBeenCalledOnce();
     // Wildcard receives ALL events, including import:started
     expect(wildcardHandler.mock.calls.length).toBeGreaterThan(1);
-    expect(wildcardHandler).toHaveBeenCalledWith(
-      expect.objectContaining({ type: 'import:started' }),
-    );
+    expect(wildcardHandler).toHaveBeenCalledWith(expect.objectContaining({ type: 'import:started' }));
   });
 });
 
@@ -314,9 +308,7 @@ describe('count() method', () => {
   it('should throw if source is not configured', async () => {
     const importer = new BulkImport({
       schema: {
-        fields: [
-          { name: 'email', type: 'email', required: true },
-        ],
+        fields: [{ name: 'email', type: 'email', required: true }],
       },
     });
 
@@ -349,9 +341,7 @@ describe('getStatus() returns status and state', () => {
   it('should return both status and state with same value', () => {
     const importer = new BulkImport({
       schema: {
-        fields: [
-          { name: 'email', type: 'email', required: true },
-        ],
+        fields: [{ name: 'email', type: 'email', required: true }],
       },
     });
 
@@ -368,9 +358,7 @@ describe('getStatus() returns status and state', () => {
 
     const importer = new BulkImport({
       schema: {
-        fields: [
-          { name: 'email', type: 'email', required: true },
-        ],
+        fields: [{ name: 'email', type: 'email', required: true }],
       },
     });
 

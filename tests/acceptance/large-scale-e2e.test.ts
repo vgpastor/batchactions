@@ -7,10 +7,7 @@ import type { ParsedRecord } from '../../src/domain/model/Record.js';
 
 // --- Helpers ---
 
-function generateLargeCsv(
-  count: number,
-  options?: { invalidEvery?: number; withZones?: boolean },
-): string {
+function generateLargeCsv(count: number, options?: { invalidEvery?: number; withZones?: boolean }): string {
   const invalidEvery = options?.invalidEvery ?? 0;
   const withZones = options?.withZones ?? false;
 
@@ -48,7 +45,7 @@ function createLargeImporter(options: {
       required: false,
       separator: ';',
       itemTransform: (s: string) => s.toLowerCase(),
-    } as typeof fields[number]);
+    } as (typeof fields)[number]);
   }
 
   return new BulkImport({
@@ -123,9 +120,7 @@ describe('Large-scale e2e: 1500 records', () => {
       expect(batchCompleted).toHaveLength(expectedBatches);
 
       // Progress events emitted after each batch
-      const progressEvents = allEvents.filter(
-        (e): e is ImportProgressEvent => e.type === 'import:progress',
-      );
+      const progressEvents = allEvents.filter((e): e is ImportProgressEvent => e.type === 'import:progress');
       expect(progressEvents).toHaveLength(expectedBatches);
 
       // Progress percentage generally increases (processedRecords grows monotonically)

@@ -59,7 +59,7 @@ Strictly follow these principles in order of priority:
 
 After every implementation task, **before considering the task complete**, verify:
 
-1. **Run the full pipeline**: `npm run typecheck && npm run lint && npm run test && npm run build`
+1. **Run the full pipeline**: `npm run typecheck && npm run lint && npm run format:check && npm run test && npm run build`
 2. **Update `todo.md`**: Mark completed items as `[x]`, add new items discovered during implementation.
 3. **Update `CLAUDE.md`**: If the change affects architecture, public API, known gaps, or technical decisions — update the relevant sections. Remove resolved gaps from "Current State & Known Gaps".
 4. **Update `README.md`**: If the change modifies or adds to the public API (new methods, new config options, new adapters), update usage examples and API reference.
