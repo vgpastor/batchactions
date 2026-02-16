@@ -134,9 +134,10 @@ npm run build    # tsup → dist/ (ESM + CJS + .d.ts)
 
 Everything exported from `index.ts` is public API. Changes to exports are breaking changes. The public API consists of:
 
-- `BulkImport` class + `BulkImportConfig` type (main entry point)
-- Domain model types (exported as `type` — no runtime footprint)
+- `BulkImport` class + `BulkImportConfig` + `GenerateTemplateOptions` types (main entry point)
+- Domain model types (exported as `type` — no runtime footprint), including `ParsedRecord`
 - `ImportStatus` and `BatchStatus` value enums (runtime exports)
+- `ImportStatusResult` type (return type of `getStatus()`)
 - Port interfaces (for consumers implementing custom adapters)
 - Domain event types (for typed event handlers)
 - Built-in parsers: `CsvParser`, `JsonParser`, `XmlParser`
@@ -190,16 +191,22 @@ Published as `@bulkimport/core@0.3.0`. CI/CD configured with GitHub Actions (lin
 - Pause/resume/abort with AbortController.
 - Preview with sampling.
 - Domain events with typed EventBus — handler errors are isolated (try/catch in `emit()`), one broken subscriber cannot disrupt the pipeline.
+- `onAny()` / `offAny()` wildcard event subscription — receive all domain events without listing each type. Useful for SSE/WebSocket relay.
+- Deferred `import:started` event — emitted in the next microtask so handlers registered after `start()` on the same tick receive it.
 - `skipEmptyRows` — shared `isEmptyRow()` function in `Record.ts`, used by SchemaValidator, CsvParser, and BulkImport.
 - Shared `detectMimeType()` utility — used by UrlSource and FilePathSource.
 - ESLint 9 flat config + Prettier configured and enforced.
 - JSDoc on all public API types, interfaces, methods, and ports.
-- `BulkImport.generateTemplate(schema)` — generate CSV header from schema.
+- `BulkImport.generateTemplate(schema, options?)` — generate CSV template with header and optional synthetic example rows per field type.
+- `BulkImport.count()` — stream-count total records without modifying import state. Useful for progress bars before `start()`.
+- `ParsedRecord` type — semantic alias for `RawRecord` indicating data has been transformed. `RecordProcessorFn` receives `ParsedRecord`.
+- `getStatus()` returns `status` (and deprecated `state` alias) for naming consistency.
+- `itemTransform` on `FieldDefinition` — per-element transform for array fields after splitting.
 - CHANGELOG maintained with Keep a Changelog format.
 - `BatchSplitter` domain service — reusable async generator that groups a record stream into fixed-size batches. Used internally by `StartImport` use case.
 - `application/usecases/` layer — orchestration extracted from `BulkImport` facade into dedicated use case classes (StartImport, PreviewImport, PauseImport, ResumeImport, AbortImport, GetImportStatus). Shared state lives in `ImportJobContext`.
 - Retry mechanism — `maxRetries` (default: 0) and `retryDelayMs` (default: 1000) config options. Exponential backoff for processor failures. `record:retried` event emitted per attempt. `retryCount` tracked on `ProcessedRecord`.
-- 276 acceptance + unit tests passing (including concurrency, state persistence, restore, retry, XML import, edge cases).
+- 300 acceptance + unit tests passing (including concurrency, state persistence, restore, retry, XML import, edge cases, user feedback features).
 - npm workspaces configured for monorepo subpackages (`packages/*`).
 - Built-in parsers: `CsvParser`, `JsonParser`, `XmlParser`.
 - Built-in sources: `BufferSource`, `FilePathSource`, `StreamSource`, `UrlSource`.
