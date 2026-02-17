@@ -2,6 +2,9 @@ import type { ProcessedRecord } from '../../domain/model/Record.js';
 import type { DataSource } from '../../domain/ports/DataSource.js';
 import type { SourceParser } from '../../domain/ports/SourceParser.js';
 import type { RecordProcessorFn, ProcessingContext } from '../../domain/ports/RecordProcessor.js';
+import type { HookContext } from '../../domain/ports/ImportHooks.js';
+import type { ValidationError } from '../../domain/model/ValidationResult.js';
+import { hasErrors, getWarnings } from '../../domain/model/ValidationResult.js';
 import {
   createPendingRecord,
   markRecordValid,
@@ -58,15 +61,19 @@ export class StartImport {
       }
 
       if (!this.ctx.abortController.signal.aborted && this.ctx.status !== 'ABORTED') {
-        this.ctx.transitionTo('COMPLETED');
-        const summary = this.ctx.buildSummary();
+        if (this.ctx.chunkExhausted) {
+          this.ctx.transitionTo('PAUSED');
+        } else {
+          this.ctx.transitionTo('COMPLETED');
+          const summary = this.ctx.buildSummary();
 
-        this.ctx.eventBus.emit({
-          type: 'import:completed',
-          jobId: this.ctx.jobId,
-          summary,
-          timestamp: Date.now(),
-        });
+          this.ctx.eventBus.emit({
+            type: 'import:completed',
+            jobId: this.ctx.jobId,
+            summary,
+            timestamp: Date.now(),
+          });
+        }
       }
     } catch (error) {
       if (this.ctx.status !== 'ABORTED') {
@@ -84,7 +91,7 @@ export class StartImport {
   }
 
   private assertCanStart(): void {
-    if (this.ctx.status !== 'PREVIEWED' && this.ctx.status !== 'CREATED') {
+    if (this.ctx.status !== 'PREVIEWED' && this.ctx.status !== 'CREATED' && this.ctx.status !== 'PAUSED') {
       throw new Error(`Cannot start import from status '${this.ctx.status}'`);
     }
   }
@@ -116,6 +123,11 @@ export class StartImport {
       if (this.ctx.abortController?.signal.aborted || this.ctx.status === 'ABORTED') break;
       if (!this.ctx.completedBatchIndices.has(batchIndex)) {
         await this.processStreamBatch(records, batchIndex, processor);
+
+        if (this.ctx.isChunkExhausted()) {
+          this.ctx.chunkExhausted = true;
+          break;
+        }
       }
     }
   }
@@ -141,6 +153,11 @@ export class StartImport {
         activeBatches.delete(batchPromise);
       });
       activeBatches.add(batchPromise);
+
+      if (this.ctx.isChunkExhausted()) {
+        this.ctx.chunkExhausted = true;
+        break;
+      }
     }
 
     await Promise.all([...activeBatches]);
@@ -184,7 +201,31 @@ export class StartImport {
         continue;
       }
 
-      const aliased = this.ctx.validator.resolveAliases(record.raw);
+      const hookCtx: HookContext = {
+        jobId: this.ctx.jobId,
+        batchId,
+        batchIndex,
+        recordIndex: record.index,
+        totalRecords: this.ctx.totalRecords,
+        signal: this.ctx.abortController?.signal ?? new AbortController().signal,
+      };
+
+      // --- Hook: beforeValidate ---
+      let aliased = this.ctx.validator.resolveAliases(record.raw);
+      if (this.ctx.hooks?.beforeValidate) {
+        try {
+          aliased = await this.ctx.hooks.beforeValidate(aliased, hookCtx);
+        } catch (hookError) {
+          const errorMsg = hookError instanceof Error ? hookError.message : String(hookError);
+          await this.handleRecordFailure(record, batchId, `beforeValidate hook failed: ${errorMsg}`, failedCount);
+          this.ctx.failedCount++;
+          failedCount++;
+          if (!this.ctx.continueOnError) throw new Error(errorMsg);
+          this.ctx.chunkRecordCount++;
+          continue;
+        }
+      }
+
       const transformed = this.ctx.validator.applyTransforms(aliased);
       const validation = this.ctx.validator.validate(transformed);
 
@@ -192,9 +233,51 @@ export class StartImport {
         ? this.ctx.validator.validateUniqueness(transformed, this.ctx.seenUniqueValues)
         : [];
 
-      const allErrors = [...validation.errors, ...uniqueErrors];
+      // --- External duplicate check ---
+      const externalDupErrors: ValidationError[] = [];
+      if (this.ctx.duplicateChecker && validation.errors.length === 0 && uniqueErrors.length === 0) {
+        try {
+          const dupResult = await this.ctx.duplicateChecker.check(transformed, hookCtx);
+          if (dupResult.isDuplicate) {
+            externalDupErrors.push({
+              field: '_external',
+              message: `Duplicate record found${dupResult.existingId ? ` (existing ID: ${dupResult.existingId})` : ''}`,
+              code: 'EXTERNAL_DUPLICATE',
+              value: undefined,
+            });
+          }
+        } catch (checkerError) {
+          const errorMsg = checkerError instanceof Error ? checkerError.message : String(checkerError);
+          externalDupErrors.push({
+            field: '_external',
+            message: `Duplicate check failed: ${errorMsg}`,
+            code: 'EXTERNAL_DUPLICATE',
+            value: undefined,
+          });
+        }
+      }
 
-      if (allErrors.length > 0) {
+      let allErrors = [...validation.errors, ...uniqueErrors, ...externalDupErrors];
+
+      // --- Hook: afterValidate ---
+      if (this.ctx.hooks?.afterValidate) {
+        try {
+          const tempRecord =
+            allErrors.length > 0 ? markRecordInvalid(record, allErrors) : markRecordValid(record, transformed);
+          const modifiedRecord = await this.ctx.hooks.afterValidate(tempRecord, hookCtx);
+          allErrors = [...modifiedRecord.errors];
+        } catch (hookError) {
+          const errorMsg = hookError instanceof Error ? hookError.message : String(hookError);
+          await this.handleRecordFailure(record, batchId, `afterValidate hook failed: ${errorMsg}`, failedCount);
+          this.ctx.failedCount++;
+          failedCount++;
+          if (!this.ctx.continueOnError) throw new Error(errorMsg);
+          this.ctx.chunkRecordCount++;
+          continue;
+        }
+      }
+
+      if (hasErrors(allErrors)) {
         const invalidRecord = markRecordInvalid(record, allErrors);
         this.ctx.failedCount++;
         failedCount++;
@@ -214,10 +297,13 @@ export class StartImport {
         if (!this.ctx.continueOnError) {
           throw new Error(`Validation failed for record ${String(record.index)}`);
         }
+        this.ctx.chunkRecordCount++;
         continue;
       }
 
-      const validRecord = markRecordValid(record, transformed);
+      // Warnings (non-blocking) are preserved on the valid record
+      const warnings = getWarnings(allErrors);
+      const validRecord = markRecordValid(record, transformed, warnings.length > 0 ? warnings : undefined);
       const context: ProcessingContext = {
         jobId: this.ctx.jobId,
         batchId,
@@ -227,17 +313,36 @@ export class StartImport {
         signal: this.ctx.abortController?.signal ?? new AbortController().signal,
       };
 
-      const result = await this.executeWithRetry(validRecord, context, processor, batchId);
+      // --- Hook: beforeProcess ---
+      let parsedForProcessor = validRecord.parsed;
+      if (this.ctx.hooks?.beforeProcess) {
+        try {
+          parsedForProcessor = await this.ctx.hooks.beforeProcess(parsedForProcessor, hookCtx);
+        } catch (hookError) {
+          const errorMsg = hookError instanceof Error ? hookError.message : String(hookError);
+          await this.handleRecordFailure(record, batchId, `beforeProcess hook failed: ${errorMsg}`, failedCount);
+          this.ctx.failedCount++;
+          failedCount++;
+          if (!this.ctx.continueOnError) throw new Error(errorMsg);
+          this.ctx.chunkRecordCount++;
+          continue;
+        }
+      }
+
+      const recordForProcessor: ProcessedRecord = { ...validRecord, parsed: parsedForProcessor };
+      const result = await this.executeWithRetry(recordForProcessor, context, processor, batchId);
 
       if (result.success) {
         this.ctx.processedCount++;
         processedCount++;
 
-        await this.ctx.stateStore.saveProcessedRecord(this.ctx.jobId, batchId, {
-          ...validRecord,
+        const processedRecord: ProcessedRecord = {
+          ...recordForProcessor,
           status: 'processed',
           retryCount: result.attempts - 1,
-        });
+        };
+
+        await this.ctx.stateStore.saveProcessedRecord(this.ctx.jobId, batchId, processedRecord);
 
         this.ctx.eventBus.emit({
           type: 'record:processed',
@@ -246,6 +351,34 @@ export class StartImport {
           recordIndex: record.index,
           timestamp: Date.now(),
         });
+
+        // --- Hook: afterProcess ---
+        if (this.ctx.hooks?.afterProcess) {
+          try {
+            await this.ctx.hooks.afterProcess(processedRecord, hookCtx);
+          } catch (hookError) {
+            const errorMsg = hookError instanceof Error ? hookError.message : String(hookError);
+            // Revert: mark as failed since afterProcess hook failed
+            this.ctx.processedCount--;
+            processedCount--;
+            const failedAfterHook = markRecordFailed(recordForProcessor, `afterProcess hook failed: ${errorMsg}`);
+            this.ctx.failedCount++;
+            failedCount++;
+            await this.ctx.stateStore.saveProcessedRecord(this.ctx.jobId, batchId, failedAfterHook);
+            this.ctx.eventBus.emit({
+              type: 'record:failed',
+              jobId: this.ctx.jobId,
+              batchId,
+              recordIndex: record.index,
+              error: errorMsg,
+              record: failedAfterHook,
+              timestamp: Date.now(),
+            });
+            if (!this.ctx.continueOnError) throw new Error(errorMsg);
+          }
+        }
+
+        this.ctx.chunkRecordCount++;
       } else {
         const failedRecord = markRecordFailed(validRecord, result.error);
         const failedWithRetries: ProcessedRecord = { ...failedRecord, retryCount: result.attempts - 1 };
@@ -267,6 +400,7 @@ export class StartImport {
         if (!this.ctx.continueOnError) {
           throw new Error(result.error);
         }
+        this.ctx.chunkRecordCount++;
       }
     }
 
@@ -344,6 +478,25 @@ export class StartImport {
     }
 
     return { success: false, attempts: maxAttempts, error: lastError };
+  }
+
+  private async handleRecordFailure(
+    record: ProcessedRecord,
+    batchId: string,
+    errorMsg: string,
+    _failedCount: number,
+  ): Promise<void> {
+    const failedRecord = markRecordFailed(record, errorMsg);
+    await this.ctx.stateStore.saveProcessedRecord(this.ctx.jobId, batchId, failedRecord);
+    this.ctx.eventBus.emit({
+      type: 'record:failed',
+      jobId: this.ctx.jobId,
+      batchId,
+      recordIndex: record.index,
+      error: errorMsg,
+      record: failedRecord,
+      timestamp: Date.now(),
+    });
   }
 
   private sleep(ms: number): Promise<void> {

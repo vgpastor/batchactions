@@ -46,9 +46,13 @@ export function createPendingRecord(index: number, raw: RawRecord): ProcessedRec
   };
 }
 
-/** Transition a record to `valid` status with transformed data. */
-export function markRecordValid(record: ProcessedRecord, parsed: RawRecord): ProcessedRecord {
-  return { ...record, parsed, status: 'valid', errors: [] };
+/** Transition a record to `valid` status with transformed data. Optionally attach non-blocking warnings. */
+export function markRecordValid(
+  record: ProcessedRecord,
+  parsed: RawRecord,
+  warnings?: readonly ValidationError[],
+): ProcessedRecord {
+  return { ...record, parsed, status: 'valid', errors: warnings ?? [] };
 }
 
 /** Transition a record to `invalid` status with validation errors. */

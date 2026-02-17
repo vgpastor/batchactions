@@ -138,8 +138,12 @@ Everything exported from `index.ts` is public API. Changes to exports are breaki
 - Domain model types (exported as `type` — no runtime footprint), including `ParsedRecord`
 - `ImportStatus` and `BatchStatus` value enums (runtime exports)
 - `ImportStatusResult` type (return type of `getStatus()`)
+- `ChunkOptions`, `ChunkResult` types (for `processChunk()`)
+- `ImportHooks`, `HookContext` types (lifecycle hooks port)
+- `DuplicateChecker`, `DuplicateCheckResult` types (external duplicate detection port)
+- `ErrorSeverity`, `ErrorCategory` types + `hasErrors()`, `getWarnings()`, `getErrors()` helpers
 - Port interfaces (for consumers implementing custom adapters)
-- Domain event types (for typed event handlers)
+- Domain event types (for typed event handlers), including `ChunkCompletedEvent`
 - Built-in parsers: `CsvParser`, `JsonParser`, `XmlParser`
 - Built-in sources: `BufferSource`, `FilePathSource`, `StreamSource`, `UrlSource`
 - Built-in state stores: `InMemoryStateStore`, `FileStateStore`
@@ -206,7 +210,11 @@ Published as `@bulkimport/core@0.4.1`. CI/CD configured with GitHub Actions (lin
 - `BatchSplitter` domain service — reusable async generator that groups a record stream into fixed-size batches. Used internally by `StartImport` use case.
 - `application/usecases/` layer — orchestration extracted from `BulkImport` facade into dedicated use case classes (StartImport, PreviewImport, PauseImport, ResumeImport, AbortImport, GetImportStatus). Shared state lives in `ImportJobContext`.
 - Retry mechanism — `maxRetries` (default: 0) and `retryDelayMs` (default: 1000) config options. Exponential backoff for processor failures. `record:retried` event emitted per attempt. `retryCount` tracked on `ProcessedRecord`.
-- 300 acceptance + unit tests passing (including concurrency, state persistence, restore, retry, XML import, edge cases, user feedback features).
+- `processChunk()` — serverless-friendly chunked processing with `maxRecords` and `maxDurationMs` limits. Chunk boundaries at batch level. `ChunkResult` with `done` flag and cumulative counters. `chunk:completed` event. Compatible with `restore()` for multi-invocation processing.
+- Lifecycle hooks (`ImportHooks`) — 4 optional async hooks in the processing pipeline: `beforeValidate`, `afterValidate`, `beforeProcess`, `afterProcess`. Hooks receive `HookContext` with job/batch/record metadata and abort signal. Hook errors mark the record as failed (respects `continueOnError`).
+- `DuplicateChecker` port — external duplicate detection against database/API. Only invoked for records that pass internal validation. `DuplicateCheckResult` with `isDuplicate`, `existingId?`, `metadata?`. Optional `checkBatch()` for batch-optimized checks. Checker errors handled gracefully.
+- Extended error model — `ValidationError` now supports optional `severity` (`'error'` | `'warning'`), `category` (`'VALIDATION'` | `'FORMAT'` | `'DUPLICATE'` | `'PROCESSING'` | `'CUSTOM'`), `suggestion`, and `metadata`. Warning-severity errors are non-blocking (record passes to processor with warnings preserved). `hasErrors()`, `getWarnings()`, `getErrors()` helper functions. `ValidationFieldResult` extended with `severity`, `suggestion`, `metadata`. All built-in errors include `category`.
+- 362 acceptance + unit tests passing (including concurrency, state persistence, restore, retry, XML import, edge cases, user feedback features, processChunk, hooks, duplicate checker, extended errors).
 - npm workspaces configured for monorepo subpackages (`packages/*`).
 - Built-in parsers: `CsvParser`, `JsonParser`, `XmlParser`.
 - Built-in sources: `BufferSource`, `FilePathSource`, `StreamSource`, `UrlSource`.

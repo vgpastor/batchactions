@@ -117,6 +117,19 @@ export interface RecordRetriedEvent {
   readonly timestamp: number;
 }
 
+/** Emitted when a chunk finishes processing (either limit reached or all records done). */
+export interface ChunkCompletedEvent {
+  readonly type: 'chunk:completed';
+  readonly jobId: string;
+  /** Records successfully processed in this chunk. */
+  readonly processedRecords: number;
+  /** Records that failed in this chunk. */
+  readonly failedRecords: number;
+  /** `true` when all records have been processed (import complete). */
+  readonly done: boolean;
+  readonly timestamp: number;
+}
+
 /** Discriminated union of all domain events. */
 export type DomainEvent =
   | ImportStartedEvent
@@ -130,7 +143,8 @@ export type DomainEvent =
   | BatchFailedEvent
   | RecordProcessedEvent
   | RecordFailedEvent
-  | RecordRetriedEvent;
+  | RecordRetriedEvent
+  | ChunkCompletedEvent;
 
 /** String literal union of all event type names. */
 export type EventType = DomainEvent['type'];

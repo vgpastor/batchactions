@@ -8,9 +8,13 @@ import type { DataSource } from './domain/ports/DataSource.js';
 import type { StateStore } from './domain/ports/StateStore.js';
 import type { RecordProcessorFn } from './domain/ports/RecordProcessor.js';
 import type { EventType, EventPayload, DomainEvent } from './domain/events/DomainEvents.js';
+import type { ImportHooks } from './domain/ports/ImportHooks.js';
+import type { DuplicateChecker } from './domain/ports/DuplicateChecker.js';
 import type { FieldDefinition } from './domain/model/FieldDefinition.js';
 import { ImportJobContext } from './application/ImportJobContext.js';
 import { StartImport } from './application/usecases/StartImport.js';
+import { ProcessChunk } from './application/usecases/ProcessChunk.js';
+import type { ChunkOptions, ChunkResult } from './application/usecases/ProcessChunk.js';
 import { PreviewImport } from './application/usecases/PreviewImport.js';
 import { PauseImport } from './application/usecases/PauseImport.js';
 import { ResumeImport } from './application/usecases/ResumeImport.js';
@@ -48,6 +52,16 @@ export interface BulkImportConfig {
    * Default: `1000`.
    */
   readonly retryDelayMs?: number;
+  /** Lifecycle hooks for intercepting the record processing pipeline. */
+  readonly hooks?: ImportHooks;
+  /**
+   * Adapter for checking records against external data sources for duplicates.
+   *
+   * The built-in `uniqueFields` schema option handles in-memory cross-record
+   * uniqueness within the import; this option is for checking against data that
+   * already exists outside the current import (e.g. a database).
+   */
+  readonly duplicateChecker?: DuplicateChecker;
 }
 
 /**
@@ -75,6 +89,8 @@ export class BulkImport {
       config.stateStore ?? new InMemoryStateStore(),
       config.maxRetries ?? 0,
       config.retryDelayMs ?? 1000,
+      config.hooks,
+      config.duplicateChecker,
     );
   }
 
@@ -239,6 +255,24 @@ export class BulkImport {
    */
   async start(processor: RecordProcessorFn): Promise<void> {
     return new StartImport(this.ctx).execute(processor);
+  }
+
+  /**
+   * Process a limited chunk of records, then pause and return control.
+   *
+   * Designed for serverless environments with execution time limits (e.g. Vercel, Lambda).
+   * Call `restore()` + `processChunk()` to continue processing in a subsequent invocation.
+   * The import completes when `ChunkResult.done` is `true`.
+   *
+   * Chunk boundaries are at the batch level: the current batch always completes
+   * before the chunk stops. Control granularity with `batchSize`.
+   *
+   * @param processor - Callback invoked for each valid record.
+   * @param options - Optional limits for records processed or time elapsed.
+   * @returns Chunk result with progress counters and completion flag.
+   */
+  async processChunk(processor: RecordProcessorFn, options?: ChunkOptions): Promise<ChunkResult> {
+    return new ProcessChunk(this.ctx).execute(processor, options);
   }
 
   /** Pause processing after the current record completes. */

@@ -15,12 +15,20 @@ export type {
 export type { ProcessedRecord, RawRecord, ParsedRecord, RecordStatus } from './domain/model/Record.js';
 export { isEmptyRow } from './domain/model/Record.js';
 export type { Batch } from './domain/model/Batch.js';
-export type { ValidationResult, ValidationError, ValidationErrorCode } from './domain/model/ValidationResult.js';
+export type {
+  ValidationResult,
+  ValidationError,
+  ValidationErrorCode,
+  ErrorSeverity,
+  ErrorCategory,
+} from './domain/model/ValidationResult.js';
+export { hasErrors, getWarnings, getErrors } from './domain/model/ValidationResult.js';
 export { ImportStatus } from './domain/model/ImportStatus.js';
 export { BatchStatus } from './domain/model/BatchStatus.js';
 
 // Use case result types
 export type { ImportStatusResult } from './application/usecases/GetImportStatus.js';
+export type { ChunkOptions, ChunkResult } from './application/usecases/ProcessChunk.js';
 
 // Domain services
 export { BatchSplitter } from './domain/services/BatchSplitter.js';
@@ -30,6 +38,8 @@ export type { SourceParser, ParserOptions } from './domain/ports/SourceParser.js
 export type { DataSource, SourceMetadata } from './domain/ports/DataSource.js';
 export type { StateStore, BatchState } from './domain/ports/StateStore.js';
 export type { RecordProcessorFn, ProcessingContext } from './domain/ports/RecordProcessor.js';
+export type { ImportHooks, HookContext } from './domain/ports/ImportHooks.js';
+export type { DuplicateChecker, DuplicateCheckResult } from './domain/ports/DuplicateChecker.js';
 
 // Domain events
 export type {
@@ -48,6 +58,7 @@ export type {
   RecordProcessedEvent,
   RecordFailedEvent,
   RecordRetriedEvent,
+  ChunkCompletedEvent,
 } from './domain/events/DomainEvents.js';
 
 // Infrastructure adapters (built-in)

@@ -9,6 +9,10 @@ Backend-agnostic bulk data import library for TypeScript/JavaScript. Schema vali
 - **Pause / Resume / Abort** — Full control over long-running imports
 - **Event-driven** — Subscribe to granular lifecycle events (import, batch, record level)
 - **Preview mode** — Sample and validate records before committing to a full import
+- **Serverless-ready** — `processChunk()` for environments with execution time limits (Vercel, Lambda)
+- **Lifecycle hooks** — Intercept the pipeline with `beforeValidate`, `afterValidate`, `beforeProcess`, `afterProcess`
+- **External duplicate detection** — Plug in a `DuplicateChecker` to check against your database
+- **Extended errors** — Severity levels (error/warning), categories, suggestions, and metadata on validation errors
 - **Pluggable architecture** — Bring your own parser, data source, or state store
 - **Zero framework coupling** — Works with Express, Fastify, Hono, serverless, or standalone
 - **Dual format** — Ships ESM and CJS with full TypeScript declarations
@@ -59,7 +63,7 @@ Each field supports:
 | `type` | `'string' \| 'number' \| 'boolean' \| 'date' \| 'email' \| 'array' \| 'custom'` | Built-in type validation |
 | `required` | `boolean` | Fail if missing or empty |
 | `pattern` | `RegExp` | Regex validation |
-| `customValidator` | `(value: unknown) => { valid: boolean; message?: string }` | Custom validation logic |
+| `customValidator` | `(value: unknown) => ValidationFieldResult` | Custom validation logic (can return `severity`, `suggestion`, `metadata`) |
 | `transform` | `(value: unknown) => unknown` | Transform value after parsing |
 | `defaultValue` | `unknown` | Applied when the field is undefined |
 | `separator` | `string` | For `array` type: split character (default: `','`) |
@@ -193,7 +197,7 @@ importer.on('import:completed', (e) => {
 });
 ```
 
-**Available events:** `import:started`, `import:completed`, `import:paused`, `import:aborted`, `import:failed`, `import:progress`, `batch:started`, `batch:completed`, `batch:failed`, `record:processed`, `record:failed`
+**Available events:** `import:started`, `import:completed`, `import:paused`, `import:aborted`, `import:failed`, `import:progress`, `batch:started`, `batch:completed`, `batch:failed`, `record:processed`, `record:failed`, `record:retried`, `chunk:completed`
 
 ### Wildcard Subscription
 
@@ -204,6 +208,148 @@ importer.onAny((event) => {
   sseStream.write(`event: ${event.type}\ndata: ${JSON.stringify(event)}\n\n`);
 });
 ```
+
+## Serverless Mode (`processChunk`)
+
+Process records in time-limited chunks for serverless environments like Vercel or AWS Lambda:
+
+```typescript
+import { BulkImport, CsvParser, UrlSource } from '@bulkimport/core';
+import { SequelizeStateStore } from '@bulkimport/state-sequelize';
+
+// Use an external StateStore — serverless has no persistent filesystem or memory
+const stateStore = new SequelizeStateStore(sequelize);
+await stateStore.initialize();
+
+const schema = { fields: [...] };
+
+export async function POST(req: Request) {
+  const { jobId, fileUrl } = await req.json();
+
+  let importer: BulkImport;
+
+  if (jobId) {
+    // Subsequent invocation — restore from persisted state
+    const restored = await BulkImport.restore(jobId, { schema, stateStore });
+    if (!restored) return Response.json({ error: 'Job not found' }, { status: 404 });
+    importer = restored;
+  } else {
+    // First invocation — create a new import
+    importer = new BulkImport({ schema, batchSize: 100, stateStore, continueOnError: true });
+  }
+
+  // Source must be available on every invocation (URL, S3, etc.)
+  importer.from(new UrlSource(fileUrl), new CsvParser());
+
+  // Process up to 25 seconds (Vercel cuts at 30s)
+  const result = await importer.processChunk(processor, { maxDurationMs: 25000 });
+
+  return Response.json({
+    jobId: result.jobId,
+    done: result.done,
+    processed: result.totalProcessed,
+    failed: result.totalFailed,
+  });
+}
+```
+
+You can limit by record count (`maxRecords`) or duration (`maxDurationMs`), or both.
+
+> **Important:** In serverless environments (Vercel, Lambda, Cloudflare Workers) both the filesystem and memory are ephemeral — they do not persist between invocations. You must use an external `StateStore` such as [`@bulkimport/state-sequelize`](./packages/state-sequelize/) or implement your own adapter (Redis, DynamoDB, etc.). The source data must also be accessible on every invocation via a URL, S3, or similar — not a local file path. `FileStateStore` and `InMemoryStateStore` are designed for long-running servers or local development only.
+
+## Lifecycle Hooks
+
+Intercept the record processing pipeline for data enrichment, error modification, or side effects:
+
+```typescript
+const importer = new BulkImport({
+  schema: { fields: [...] },
+  hooks: {
+    // Modify raw data before validation (e.g. data enrichment)
+    beforeValidate: async (record, ctx) => {
+      return { ...record, source: 'import' };
+    },
+    // Inspect/modify record after validation (e.g. downgrade errors to warnings)
+    afterValidate: async (record, ctx) => record,
+    // Modify parsed data before the processor callback
+    beforeProcess: async (parsed, ctx) => parsed,
+    // Side effects after successful processing (e.g. audit logging)
+    afterProcess: async (record, ctx) => {
+      await auditLog.write({ action: 'imported', recordIndex: ctx.recordIndex });
+    },
+  },
+});
+```
+
+All hooks are optional and async. If a hook throws, the record is marked as failed (respects `continueOnError`).
+
+## External Duplicate Detection
+
+Check records against your database or API before processing:
+
+```typescript
+import type { DuplicateChecker } from '@bulkimport/core';
+
+const checker: DuplicateChecker = {
+  async check(fields, context) {
+    const existing = await db.query('SELECT id FROM users WHERE email = $1', [fields.email]);
+    return {
+      isDuplicate: existing.length > 0,
+      existingId: existing[0]?.id,
+    };
+  },
+};
+
+const importer = new BulkImport({
+  schema: { fields: [...] },
+  duplicateChecker: checker,
+  continueOnError: true,
+});
+```
+
+The checker is only called for records that pass internal validation. Duplicate records receive an `EXTERNAL_DUPLICATE` error code.
+
+## Extended Error Model
+
+Validation errors now support severity levels, categories, suggestions, and metadata:
+
+```typescript
+const schema = {
+  fields: [
+    {
+      name: 'score',
+      type: 'number',
+      required: true,
+      customValidator: (v) => {
+        const num = Number(v);
+        if (num < 60) {
+          return {
+            valid: false,
+            message: 'Score is below threshold',
+            severity: 'warning',      // Non-blocking — record still processed
+            suggestion: 'Review scores below 60 manually',
+            metadata: { threshold: 60, actual: num },
+          };
+        }
+        return { valid: true };
+      },
+    },
+  ],
+};
+```
+
+Use the helper functions to filter errors by severity:
+
+```typescript
+import { hasErrors, getWarnings, getErrors } from '@bulkimport/core';
+
+const errors = record.errors;
+if (hasErrors(errors)) { /* has blocking errors */ }
+const warnings = getWarnings(errors);  // severity: 'warning' only
+const hard = getErrors(errors);         // severity: 'error' or undefined
+```
+
+All built-in errors include a `category`: `'VALIDATION'` (REQUIRED, UNKNOWN_FIELD), `'FORMAT'` (TYPE_MISMATCH, PATTERN_MISMATCH), `'DUPLICATE'` (DUPLICATE_VALUE), `'CUSTOM'` (CUSTOM_VALIDATION).
 
 ## Pause / Resume / Abort
 
@@ -318,7 +464,7 @@ app.post('/api/import/users', async (req, res) => {
 | Nuxt Server Routes | Yes | `server/api/` handlers |
 | tRPC | Yes | Call from procedures |
 | AWS Lambda | Yes | Pair with S3 events or API Gateway |
-| Serverless (Vercel/Netlify) | Yes | Mind the function timeout for large files |
+| Serverless (Vercel/Netlify) | Yes | Use `processChunk()` + external `StateStore` (see [Serverless Mode](#serverless-mode-processchunk)) |
 
 ### Databases / ORMs
 
@@ -468,6 +614,7 @@ The adapter creates two tables (`bulkimport_jobs` and `bulkimport_records`) and 
 | `preview(maxRecords?)` | Validate a sample of records without processing. |
 | `count()` | Count total records in the source without modifying state. |
 | `start(processor)` | Begin processing all records through the provided callback. |
+| `processChunk(processor, options?)` | Process a limited chunk of records, then pause. Returns `ChunkResult`. |
 | `pause()` | Pause processing after the current record. |
 | `resume()` | Resume a paused import. |
 | `abort()` | Cancel the import permanently. |
@@ -485,6 +632,10 @@ The adapter creates two tables (`bulkimport_jobs` and `bulkimport_records`) and 
 | `maxConcurrentBatches` | `number` | `1` | Number of batches to process in parallel |
 | `continueOnError` | `boolean` | `false` | Keep processing when a record fails |
 | `stateStore` | `StateStore` | `InMemoryStateStore` | Where to persist job state |
+| `maxRetries` | `number` | `0` | Retry attempts for processor failures (exponential backoff) |
+| `retryDelayMs` | `number` | `1000` | Base delay between retry attempts |
+| `hooks` | `ImportHooks` | — | Lifecycle hooks (`beforeValidate`, `afterValidate`, `beforeProcess`, `afterProcess`) |
+| `duplicateChecker` | `DuplicateChecker` | — | External duplicate detection adapter |
 
 ## Concurrent Batch Processing
 

@@ -18,6 +18,10 @@ Fases completadas: 1 (Foundation), 2 (Happy Path), 3 (Validación), 4 (Control d
 - [x] **`count()` antes de `start()`** — método para obtener el total de registros sin modificar estado. Útil para barras de progreso.
 - [x] **`getStatus().status` en vez de `.state`** — campo `state` marcado como `@deprecated`. Nuevo campo `status` con el mismo valor.
 - [x] **`itemTransform` para arrays** — transform aplicado a cada elemento individual después del split (ej: `.toLowerCase()` a cada zona).
+- [x] **`processChunk()` modo serverless** — procesamiento por chunks con límites de tiempo (`maxDurationMs`) y records (`maxRecords`). Chunk boundary a nivel de batch. Diseñado para Vercel/Lambda con timeouts de 30s.
+- [x] **Hooks pre/post record** — 4 hooks opcionales en el pipeline: `beforeValidate`, `afterValidate`, `beforeProcess`, `afterProcess`. Permiten enriquecimiento, modificación de errores, y side effects post-procesamiento.
+- [x] **DuplicateChecker port** — detección de duplicados contra fuentes externas (DB, API). Comprueba solo registros que pasan validación interna. Error code `EXTERNAL_DUPLICATE`. Batch-optimized `checkBatch()` optional.
+- [x] **Errores extensibles** — `severity` (`error`/`warning`), `category`, `suggestion`, `metadata` opcionales en `ValidationError`. Helpers `hasErrors()`, `getWarnings()`, `getErrors()`. Warnings son non-blocking (el record pasa al processor).
 
 ---
 
