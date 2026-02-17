@@ -5,6 +5,8 @@ import type { SchemaDefinition } from '../domain/model/Schema.js';
 import type { DataSource } from '../domain/ports/DataSource.js';
 import type { SourceParser } from '../domain/ports/SourceParser.js';
 import type { StateStore } from '../domain/ports/StateStore.js';
+import type { ImportHooks } from '../domain/ports/ImportHooks.js';
+import type { DuplicateChecker } from '../domain/ports/DuplicateChecker.js';
 import { canTransition } from '../domain/model/ImportStatus.js';
 import { SchemaValidator } from '../domain/services/SchemaValidator.js';
 import { EventBus } from './EventBus.js';
@@ -27,6 +29,8 @@ export class ImportJobContext {
   readonly maxRetries: number;
   readonly retryDelayMs: number;
   readonly schema: SchemaDefinition;
+  readonly hooks: ImportHooks | null;
+  readonly duplicateChecker: DuplicateChecker | null;
 
   source: DataSource | null = null;
   parser: SourceParser | null = null;
@@ -45,6 +49,15 @@ export class ImportJobContext {
   abortController: AbortController | null = null;
   pausePromise: { resolve: () => void; promise: Promise<void> } | null = null;
 
+  /** Chunk processing limits (set by ProcessChunk use case). */
+  chunkLimits: { readonly maxRecords?: number; readonly maxDurationMs?: number } | null = null;
+  /** Timestamp when the current chunk started processing. */
+  chunkStartTime: number | null = null;
+  /** Number of records processed (success + fail) in the current chunk. */
+  chunkRecordCount = 0;
+  /** Whether the current chunk has reached its limits. */
+  chunkExhausted = false;
+
   constructor(
     schema: SchemaDefinition,
     batchSize: number,
@@ -53,6 +66,8 @@ export class ImportJobContext {
     stateStore: StateStore,
     maxRetries: number,
     retryDelayMs: number,
+    hooks?: ImportHooks | null,
+    duplicateChecker?: DuplicateChecker | null,
   ) {
     this.schema = schema;
     this.batchSize = batchSize;
@@ -61,6 +76,8 @@ export class ImportJobContext {
     this.maxRetries = maxRetries;
     this.retryDelayMs = retryDelayMs;
     this.stateStore = stateStore;
+    this.hooks = hooks ?? null;
+    this.duplicateChecker = duplicateChecker ?? null;
     this.validator = new SchemaValidator(schema);
     this.eventBus = new EventBus();
     this.jobId = crypto.randomUUID();
@@ -136,6 +153,25 @@ export class ImportJobContext {
     if (!this.source || !this.parser) {
       throw new Error('Source and parser must be configured. Call .from(source, parser) first.');
     }
+  }
+
+  /** Check whether the current chunk has exceeded its time or record limits. */
+  isChunkExhausted(): boolean {
+    if (!this.chunkLimits) return false;
+
+    if (this.chunkLimits.maxRecords !== undefined && this.chunkRecordCount >= this.chunkLimits.maxRecords) {
+      return true;
+    }
+
+    if (
+      this.chunkLimits.maxDurationMs !== undefined &&
+      this.chunkStartTime !== null &&
+      Date.now() - this.chunkStartTime >= this.chunkLimits.maxDurationMs
+    ) {
+      return true;
+    }
+
+    return false;
   }
 
   updateBatchStatus(batchId: string, status: Batch['status'], processedCount?: number, failedCount?: number): void {

@@ -38,6 +38,7 @@ export class SchemaValidator {
             field: key,
             message: `Unknown field '${key}' is not allowed in strict mode`,
             code: 'UNKNOWN_FIELD',
+            category: 'VALIDATION',
             value: record[key],
           });
         }
@@ -71,6 +72,7 @@ export class SchemaValidator {
           field: fieldName,
           message: `Duplicate value '${String(value)}' for unique field '${fieldName}'`,
           code: 'DUPLICATE_VALUE',
+          category: 'DUPLICATE',
           value,
         });
       } else {
@@ -159,6 +161,7 @@ export class SchemaValidator {
           field: field.name,
           message: `Field '${field.name}' is required`,
           code: 'REQUIRED',
+          category: 'VALIDATION',
           value,
         });
       }
@@ -186,6 +189,7 @@ export class SchemaValidator {
           field: field.name,
           message: `Field '${field.name}' does not match pattern ${String(field.pattern)}`,
           code: 'PATTERN_MISMATCH',
+          category: 'FORMAT',
           value,
         });
       }
@@ -198,7 +202,11 @@ export class SchemaValidator {
           field: field.name,
           message: result.message ?? `Custom validation failed for field '${field.name}'`,
           code: 'CUSTOM_VALIDATION',
+          category: 'CUSTOM',
           value,
+          severity: result.severity,
+          suggestion: result.suggestion,
+          metadata: result.metadata,
         });
       }
     }
@@ -213,6 +221,7 @@ export class SchemaValidator {
       field: field.name,
       message: `Field '${field.name}' must be a string (to be split) or an array`,
       code: 'TYPE_MISMATCH',
+      category: 'FORMAT',
       value,
     };
   }
@@ -228,6 +237,7 @@ export class SchemaValidator {
             field: field.name,
             message: `Field '${field.name}' must be a number`,
             code: 'TYPE_MISMATCH',
+            category: 'FORMAT',
             value,
           };
         }
@@ -240,6 +250,7 @@ export class SchemaValidator {
             field: field.name,
             message: `Field '${field.name}' must be a boolean`,
             code: 'TYPE_MISMATCH',
+            category: 'FORMAT',
             value,
           };
         }
@@ -252,6 +263,7 @@ export class SchemaValidator {
             field: field.name,
             message: `Field '${field.name}' must be a valid date`,
             code: 'TYPE_MISMATCH',
+            category: 'FORMAT',
             value,
           };
         }
@@ -263,6 +275,7 @@ export class SchemaValidator {
             field: field.name,
             message: `Field '${field.name}' must be a valid email`,
             code: 'TYPE_MISMATCH',
+            category: 'FORMAT',
             value,
           };
         }

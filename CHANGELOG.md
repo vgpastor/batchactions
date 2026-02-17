@@ -5,7 +5,30 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
-## [Unreleased]
+## [0.5.0] - 2026-02-17
+
+### Added
+
+- **Distributed processing domain types** — `DistributedStateStore` port interface (extends `StateStore`), `BatchReservation`, `ClaimBatchResult`, `ClaimBatchFailureReason`, `DistributedJobStatus` model types. `isDistributedStateStore()` type guard for runtime detection. All additive, zero breaking changes.
+- **Distributed domain events** — `batch:claimed` (emitted when a worker claims a batch) and `distributed:prepared` (emitted after prepare phase materializes all records). Added to the `DomainEvent` discriminated union.
+- **Optional distributed fields on domain models** — `Batch` gains optional `workerId?`, `claimedAt?`, `recordStartIndex?`, `recordEndIndex?`. `ImportJobState` gains optional `distributed?` flag. Non-breaking.
+- **`@bulkimport/distributed` package** (`packages/distributed/`) — new npm package for distributed multi-worker batch processing. Two-phase model: orchestrator calls `prepare()` (streams source, materializes records in StateStore, creates batch metadata), then N workers call `processWorkerBatch()` (claims batch atomically, processes records, finalizes job on last batch). `DistributedImport` facade, `PrepareDistributedImport` and `ProcessDistributedBatch` use cases. 13 acceptance tests. `peerDependency` on `@bulkimport/core >= 0.4.0`.
+- **`@bulkimport/state-sequelize` distributed support** — `SequelizeStateStore` now implements `DistributedStateStore`. New `bulkimport_batches` table for distributed batch metadata. Atomic batch claiming with optimistic locking (`version` column). `reclaimStaleBatches()` for timeout-based recovery of crashed workers. `tryFinalizeJob()` for exactly-once completion detection. 26 new integration tests (79 total).
+- **`processChunk()` — Serverless mode** — `await importer.processChunk(processor, { maxRecords: 100, maxDurationMs: 25000 })` processes a limited chunk of records and returns control. Designed for serverless environments with execution time limits (Vercel, Lambda). Chunk boundaries are at the batch level. Call `restore()` + `processChunk()` in subsequent invocations to continue. Returns `ChunkResult` with `done` flag, per-chunk and cumulative counters.
+- **`ChunkCompletedEvent`** domain event — emitted after each chunk finishes with `processedRecords`, `failedRecords`, and `done` flag.
+- **`ChunkOptions`** and **`ChunkResult`** types exported from the public API.
+- **Lifecycle hooks** — `ImportHooks` interface with 4 optional async hooks: `beforeValidate`, `afterValidate`, `beforeProcess`, `afterProcess`. Hooks intercept the record processing pipeline for data enrichment, error modification, and side effects. Hook errors mark the record as failed (respects `continueOnError`).
+- **`ImportHooks`** and **`HookContext`** types exported from the public API.
+- **`DuplicateChecker` port** — interface for checking records against external data sources (database, API) for duplicates. Only invoked for records that pass internal validation. Returns `DuplicateCheckResult` with `isDuplicate`, `existingId?`, and `metadata?`. Checker errors are handled gracefully (record marked as failed).
+- **`DuplicateChecker`** and **`DuplicateCheckResult`** types exported from the public API.
+- **`EXTERNAL_DUPLICATE`** validation error code for records flagged by the `DuplicateChecker`.
+- **Extended error model** — `ValidationError` now supports optional `severity` (`'error'` | `'warning'`), `category` (`'VALIDATION'` | `'FORMAT'` | `'DUPLICATE'` | `'PROCESSING'` | `'CUSTOM'`), `suggestion` (actionable hint), and `metadata` (structured data). All new fields are optional — fully backward-compatible.
+- **Warning-level errors are non-blocking** — records with only `severity: 'warning'` errors pass through to the processor. Warnings are preserved in the record's `errors` array.
+- **`hasErrors()`**, **`getWarnings()`**, **`getErrors()`** helper functions exported from the public API for filtering `ValidationError` arrays by severity.
+- **`ErrorSeverity`** and **`ErrorCategory`** types exported from the public API.
+- **`ValidationFieldResult`** extended — custom validators can now return `severity`, `suggestion`, and `metadata` in addition to `valid` and `message`.
+- **`category` populated on all built-in errors** — `REQUIRED` → `'VALIDATION'`, `TYPE_MISMATCH` → `'FORMAT'`, `PATTERN_MISMATCH` → `'FORMAT'`, `UNKNOWN_FIELD` → `'VALIDATION'`, `DUPLICATE_VALUE` → `'DUPLICATE'`, `CUSTOM_VALIDATION` → `'CUSTOM'`.
+- 44 new tests: processChunk (10), hooks (11), duplicate-checker (10), extended-errors (11), ValidationResult helpers (12). 362 total tests (was 300).
 
 ## [0.4.1] - 2026-02-16
 

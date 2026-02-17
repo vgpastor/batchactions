@@ -5,6 +5,12 @@ export type FieldType = 'string' | 'number' | 'boolean' | 'date' | 'email' | 'ar
 export interface ValidationFieldResult {
   valid: boolean;
   message?: string;
+  /** Override severity for this validation result. Defaults to `'error'`. */
+  severity?: 'error' | 'warning';
+  /** Actionable hint for the user to fix the error. */
+  suggestion?: string;
+  /** Additional structured data about the validation result. */
+  metadata?: Record<string, unknown>;
 }
 
 /** Defines a single field in the import schema. */
