@@ -1,7 +1,7 @@
 {
   "name": "@batchactions/distributed",
   "version": "0.0.3",
-  "description": "Distributed parallel batch processing for @batchactions/core with fan-out workers",
+  "description": "Distributed worker orchestration for TypeScript batch imports with parallel processing, serverless fan-out, and atomic batch claiming",
   "type": "module",
   "exports": {
     ".": {
@@ -28,13 +28,17 @@
     "format:check": "prettier --check ."
   },
   "keywords": [
-    "batchactions",
-    "distributed",
-    "parallel",
+    "distributed-processing",
+    "distributed-workers",
+    "worker-orchestration",
     "batch-processing",
+    "parallel-processing",
     "serverless",
     "lambda",
-    "worker"
+    "queue-workers",
+    "typescript",
+    "nodejs",
+    "etl"
   ],
   "license": "MIT",
   "author": "Victor Garcia <vgpastor@ingenierosweb.co>",

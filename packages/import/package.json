@@ -1,7 +1,7 @@
 {
   "name": "@batchactions/import",
   "version": "0.0.3",
-  "description": "Import facade for @batchactions/core with schema validation, parsers, and template generation",
+  "description": "CSV/JSON/XML bulk import library for Node.js and TypeScript with schema validation, preview, and ETL-ready processing",
   "engines": {
     "node": ">=20.0.0"
   },
@@ -45,10 +45,16 @@
   },
   "keywords": [
     "bulk-import",
-    "csv",
-    "json",
-    "xml",
+    "csv-import",
+    "json-import",
+    "xml-import",
+    "data-import",
+    "file-import",
+    "bulk-upload",
+    "etl",
     "schema-validation",
+    "typescript",
+    "nodejs",
     "batch-processing"
   ],
   "author": "Victor Garcia <vgpastor@ingenierosweb.co>",

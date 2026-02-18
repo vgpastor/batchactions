@@ -1,0 +1,12 @@
+{
+  "name": "basic-csv-import-example",
+  "private": true,
+  "type": "module",
+  "scripts": {
+    "start": "node index.mjs"
+  },
+  "dependencies": {
+    "@batchactions/core": "^0.0.3",
+    "@batchactions/import": "^0.0.3"
+  }
+}

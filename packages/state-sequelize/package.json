@@ -1,7 +1,7 @@
 {
   "name": "@batchactions/state-sequelize",
   "version": "0.0.3",
-  "description": "Sequelize StateStore and DistributedStateStore adapter for @batchactions/core",
+  "description": "Sequelize persistence adapter for batch jobs and distributed workers with state storage, atomic claims, and job recovery",
   "type": "module",
   "exports": {
     ".": {
@@ -28,12 +28,18 @@
     "format:check": "prettier --check ."
   },
   "keywords": [
-    "batchactions",
     "sequelize",
     "state-store",
-    "distributed",
-    "persistence",
-    "database"
+    "distributed-state",
+    "job-persistence",
+    "batch-processing",
+    "distributed-workers",
+    "sql",
+    "mysql",
+    "postgresql",
+    "sqlite",
+    "typescript",
+    "nodejs"
   ],
   "license": "MIT",
   "author": "Victor Garcia <vgpastor@ingenierosweb.co>",

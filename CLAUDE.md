@@ -89,8 +89,20 @@ After every implementation task, **before considering the task complete**, verif
 2. **Update `todo.md`**: Mark completed items as `[x]`, add new items discovered during implementation.
 3. **Update `CLAUDE.md`**: If the change affects architecture, public API, known gaps, or technical decisions — update the relevant sections.
 4. **Update `README.md`**: If the change modifies or adds to the public API (new methods, new config options, new adapters), update usage examples and API reference.
+5. **Update trust signals when applicable**:
+   - If behavior changed, add/update `CHANGELOG.md` with user-facing language.
+   - If release-worthy, prepare notes using `.github/RELEASE_TEMPLATE.md`.
+   - Ensure at least one runnable end-to-end example remains valid (`examples/basic-csv-import`).
+   - Keep `.github/GITHUB_POSITIONING_CHECKLIST.md` aligned with repo metadata goals.
 
 This checklist is non-negotiable. Documentation drift is a bug.
+
+## Trust Signals Rules
+
+- Trust signals are part of quality, not optional marketing tasks.
+- Every release should include clear user-facing outcomes, not only internal refactors.
+- Root README must keep working badges, package chooser guidance, and links to examples.
+- Do not merge API or behavior changes without updating docs/changelog/release notes together.
 
 ## Coding Conventions
 

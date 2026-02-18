@@ -1,7 +1,7 @@
 {
   "name": "@batchactions/core",
   "version": "0.0.3",
-  "description": "Backend-agnostic batch processing engine with state management, concurrency control, and lifecycle events",
+  "description": "TypeScript batch job engine for ETL and bulk data processing with state management, retries, pause/resume, and lifecycle events",
   "type": "module",
   "exports": {
     ".": {
@@ -29,16 +29,18 @@
     "format:check": "prettier --check ."
   },
   "keywords": [
-    "batch",
-    "processing",
-    "engine",
-    "state-machine",
+    "batch-processing",
+    "batch-job",
+    "job-queue",
+    "data-pipeline",
+    "etl",
+    "bulk-processing",
+    "typescript",
+    "nodejs",
+    "retry-strategy",
+    "pause-resume",
     "concurrency",
-    "stream",
-    "events",
-    "retry",
-    "pause",
-    "resume"
+    "worker"
   ],
   "license": "MIT",
   "author": "Victor Garcia <vgpastor@ingenierosweb.co>",

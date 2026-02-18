@@ -1,8 +1,23 @@
 # @batchactions
 
-Backend-agnostic batch data processing for TypeScript/JavaScript.
+[![CI](https://github.com/vgpastor/batchactions/actions/workflows/ci.yml/badge.svg)](https://github.com/vgpastor/batchactions/actions/workflows/ci.yml)
+[![License: MIT](https://img.shields.io/badge/license-MIT-blue.svg)](./LICENSE)
+[![npm core](https://img.shields.io/npm/v/@batchactions/core.svg)](https://www.npmjs.com/package/@batchactions/core)
+[![npm import](https://img.shields.io/npm/v/@batchactions/import.svg)](https://www.npmjs.com/package/@batchactions/import)
+[![npm distributed](https://img.shields.io/npm/v/@batchactions/distributed.svg)](https://www.npmjs.com/package/@batchactions/distributed)
+[![npm state-sequelize](https://img.shields.io/npm/v/@batchactions/state-sequelize.svg)](https://www.npmjs.com/package/@batchactions/state-sequelize)
+
+TypeScript libraries for bulk import pipelines: parse CSV/JSON/XML, validate schema, process at scale, and run with pause/resume or distributed workers.
 
 This monorepo contains the packages needed to parse, validate, process, and persist large imports with support for pause/resume, serverless chunking, and distributed workers.
+
+## Why @batchactions
+
+- Designed for data imports, not generic background jobs
+- Built-in schema validation + preview before processing
+- Pause, resume, abort, and restore flows out of the box
+- Distributed mode with atomic batch claiming for multi-worker execution
+- Pluggable state stores and parsers so you can adapt to existing infrastructure
 
 ## Packages
 
@@ -24,6 +39,13 @@ Add these when needed:
 ```bash
 npm install @batchactions/distributed @batchactions/state-sequelize sequelize
 ```
+
+## Choose Your Package
+
+- Start with `@batchactions/import` for most CSV/JSON/XML import workflows
+- Add `@batchactions/core` if you need low-level orchestration and custom parser/source control
+- Add `@batchactions/distributed` when one process is not enough
+- Add `@batchactions/state-sequelize` for SQL-backed state and distributed claiming
 
 ## Quick Start
 
@@ -51,6 +73,11 @@ await importer.start(async (record) => {
 });
 ```
 
+## Why Not X?
+
+- Use queue-first tools (BullMQ, Agenda, Bree) when your main need is generic background jobs.
+- Use `@batchactions` when your main need is import-specific behavior: schema validation, preview, structured record errors, pause/resume, restore, and distributed batch claiming.
+
 ## Core Features
 
 - Schema validation and transforms
@@ -64,6 +91,9 @@ await importer.start(async (record) => {
 ## Documentation Map
 
 - Root contributing guide: [`CONTRIBUTING.md`](./CONTRIBUTING.md)
+- GitHub positioning checklist: [`.github/GITHUB_POSITIONING_CHECKLIST.md`](./.github/GITHUB_POSITIONING_CHECKLIST.md)
+- Release template: [`.github/RELEASE_TEMPLATE.md`](./.github/RELEASE_TEMPLATE.md)
+- End-to-end example: [`examples/basic-csv-import`](./examples/basic-csv-import/README.md)
 - `@batchactions/core`: [`packages/core/README.md`](./packages/core/README.md)
 - `@batchactions/import`: [`packages/import/README.md`](./packages/import/README.md)
 - `@batchactions/distributed`: [`packages/distributed/README.md`](./packages/distributed/README.md)

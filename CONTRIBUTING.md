@@ -131,8 +131,18 @@ Before marking a PR as ready for review, verify:
 - [ ] **`README.md`** — Updated if the PR adds, changes, or removes public API (methods, config options, adapters, events). Usage examples must reflect the current API.
 - [ ] **`CHANGELOG.md`** — Entry added under `[Unreleased]` describing the change. Use `Added`, `Changed`, `Deprecated`, `Removed`, `Fixed` categories.
 - [ ] **`todo.md`** — Completed items marked as `[x]`, new items added if discovered during implementation.
+- [ ] **Release notes draft** — If the PR is release-worthy, draft notes using [`.github/RELEASE_TEMPLATE.md`](./.github/RELEASE_TEMPLATE.md).
+- [ ] **End-to-end example** — If behavior changes, verify or update at least one runnable example (currently [`examples/basic-csv-import`](./examples/basic-csv-import/README.md)).
 
 Documentation drift is a bug. A PR that changes behavior without updating docs is incomplete.
+
+## Trust Signals (Required)
+
+Treat these as part of "definition of done":
+
+- Keep release notes user-facing: describe outcomes and use cases, not only internals.
+- Keep changelog entries searchable (`bulk import`, `csv import`, `batch processing`, `distributed workers`, `typescript`) when relevant.
+- Keep repository positioning metadata aligned with [`.github/GITHUB_POSITIONING_CHECKLIST.md`](./.github/GITHUB_POSITIONING_CHECKLIST.md).
 
 ## Breaking Changes & Versioning
 
