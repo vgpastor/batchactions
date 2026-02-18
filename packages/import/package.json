@@ -45,5 +45,10 @@
     "schema-validation",
     "batch-processing"
   ],
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/vgpastor/batchactions",
+    "directory": "packages/import"
+  },
   "license": "MIT"
 }
