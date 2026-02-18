@@ -20,12 +20,14 @@ jobs:
           node-version: 22
           cache: npm
       - run: npm ci
+      - run: npm run build
       - run: npm run lint
       - run: npm run typecheck
       - run: npm run format:check
 
   test:
     name: Test (Node ${{ matrix.node-version }})
+    needs: [lint]
     runs-on: ubuntu-latest
     strategy:
       matrix:
@@ -37,16 +39,13 @@ jobs:
           node-version: ${{ matrix.node-version }}
           cache: npm
       - run: npm ci
-      - run: npm run test:coverage
-      - name: Upload coverage
-        if: matrix.node-version == 22
-        uses: actions/upload-artifact@v6
-        with:
-          name: coverage
-          path: coverage/
+      - run: npm run build
+      - run: npm test -w packages/core
+      - run: npm test -w packages/import
 
   test-state-sequelize:
     name: Test state-sequelize
+    needs: [lint]
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v6
@@ -60,6 +59,7 @@ jobs:
 
   test-distributed:
     name: Test distributed
+    needs: [lint]
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v6
@@ -85,7 +85,15 @@ jobs:
       - run: npm run build
       - name: Verify dist output
         run: |
-          test -f dist/index.js
-          test -f dist/index.cjs
-          test -f dist/index.d.ts
-          test -f dist/index.d.cts
+          test -f packages/core/dist/index.js
+          test -f packages/core/dist/index.cjs
+          test -f packages/core/dist/index.d.ts
+          test -f packages/import/dist/index.js
+          test -f packages/import/dist/index.cjs
+          test -f packages/import/dist/index.d.ts
+          test -f packages/distributed/dist/index.js
+          test -f packages/distributed/dist/index.cjs
+          test -f packages/distributed/dist/index.d.ts
+          test -f packages/state-sequelize/dist/index.js
+          test -f packages/state-sequelize/dist/index.cjs
+          test -f packages/state-sequelize/dist/index.d.ts
