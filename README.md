@@ -6,6 +6,7 @@
 [![npm import](https://img.shields.io/npm/v/@batchactions/import.svg)](https://www.npmjs.com/package/@batchactions/import)
 [![npm distributed](https://img.shields.io/npm/v/@batchactions/distributed.svg)](https://www.npmjs.com/package/@batchactions/distributed)
 [![npm state-sequelize](https://img.shields.io/npm/v/@batchactions/state-sequelize.svg)](https://www.npmjs.com/package/@batchactions/state-sequelize)
+[![npm state-prisma](https://img.shields.io/npm/v/@batchactions/state-prisma.svg)](https://www.npmjs.com/package/@batchactions/state-prisma)
 
 TypeScript libraries for bulk import pipelines: parse CSV/JSON/XML, validate schema, process at scale, and run with pause/resume or distributed workers.
 
@@ -27,6 +28,7 @@ This monorepo contains the packages needed to parse, validate, process, and pers
 | [`@batchactions/import`](./packages/import/README.md) | High-level import facade with schema validation + CSV/JSON/XML parsers | [npm](https://www.npmjs.com/package/@batchactions/import) |
 | [`@batchactions/distributed`](./packages/distributed/README.md) | Multi-worker orchestration for distributed processing | [npm](https://www.npmjs.com/package/@batchactions/distributed) |
 | [`@batchactions/state-sequelize`](./packages/state-sequelize/README.md) | Sequelize adapter for `StateStore` and `DistributedStateStore` | [npm](https://www.npmjs.com/package/@batchactions/state-sequelize) |
+| [`@batchactions/state-prisma`](./packages/state-prisma/README.md) | Prisma v6/v7 adapter for `StateStore` and `DistributedStateStore` | [npm](https://www.npmjs.com/package/@batchactions/state-prisma) |
 
 ## Install
 
@@ -37,7 +39,13 @@ npm install @batchactions/core @batchactions/import
 Add these when needed:
 
 ```bash
-npm install @batchactions/distributed @batchactions/state-sequelize sequelize
+npm install @batchactions/distributed
+
+# Sequelize state store
+npm install @batchactions/state-sequelize sequelize
+
+# Prisma state store
+npm install @batchactions/state-prisma
 ```
 
 ## Choose Your Package
@@ -45,7 +53,8 @@ npm install @batchactions/distributed @batchactions/state-sequelize sequelize
 - Start with `@batchactions/import` for most CSV/JSON/XML import workflows
 - Add `@batchactions/core` if you need low-level orchestration and custom parser/source control
 - Add `@batchactions/distributed` when one process is not enough
-- Add `@batchactions/state-sequelize` for SQL-backed state and distributed claiming
+- Add `@batchactions/state-sequelize` for SQL-backed state with Sequelize
+- Add `@batchactions/state-prisma` for SQL-backed state with Prisma (v6 or v7)
 
 ## Quick Start
 
@@ -98,6 +107,7 @@ await importer.start(async (record) => {
 - `@batchactions/import`: [`packages/import/README.md`](./packages/import/README.md)
 - `@batchactions/distributed`: [`packages/distributed/README.md`](./packages/distributed/README.md)
 - `@batchactions/state-sequelize`: [`packages/state-sequelize/README.md`](./packages/state-sequelize/README.md)
+- `@batchactions/state-prisma`: [`packages/state-prisma/README.md`](./packages/state-prisma/README.md)
 
 ## Requirements
 

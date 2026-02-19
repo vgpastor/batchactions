@@ -6,18 +6,18 @@ async function main() {
     schema: {
       fields: [
         { name: 'email', type: 'email', required: true },
-        { name: 'name', type: 'string', required: true }
-      ]
+        { name: 'name', type: 'string', required: true },
+      ],
     },
     batchSize: 2,
-    continueOnError: true
+    continueOnError: true,
   });
 
   const csv = [
     'email,name',
     'ada@example.com,Ada Lovelace',
     'invalid-email,Invalid User',
-    'grace@example.com,Grace Hopper'
+    'grace@example.com,Grace Hopper',
   ].join('\n');
 
   importer.from(new BufferSource(csv), new CsvParser());

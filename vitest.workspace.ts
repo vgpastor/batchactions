@@ -5,4 +5,5 @@ export default defineWorkspace([
   'packages/import/vitest.config.ts',
   'packages/distributed/vitest.config.ts',
   'packages/state-sequelize/vitest.config.ts',
+  'packages/state-prisma/vitest.config.ts',
 ]);

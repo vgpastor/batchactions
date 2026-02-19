@@ -71,10 +71,24 @@ jobs:
       - run: npm run build
       - run: npm test -w packages/distributed
 
+  test-state-prisma:
+    name: Test state-prisma
+    needs: [lint]
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v6
+      - uses: actions/setup-node@v6
+        with:
+          node-version: 22
+          cache: npm
+      - run: npm ci
+      - run: npm run build
+      - run: npm test -w packages/state-prisma
+
   build:
     name: Build
     runs-on: ubuntu-latest
-    needs: [lint, test, test-state-sequelize, test-distributed]
+    needs: [lint, test, test-state-sequelize, test-distributed, test-state-prisma]
     steps:
       - uses: actions/checkout@v6
       - uses: actions/setup-node@v6
@@ -97,3 +111,6 @@ jobs:
           test -f packages/state-sequelize/dist/index.js
           test -f packages/state-sequelize/dist/index.cjs
           test -f packages/state-sequelize/dist/index.d.ts
+          test -f packages/state-prisma/dist/index.js
+          test -f packages/state-prisma/dist/index.cjs
+          test -f packages/state-prisma/dist/index.d.ts
