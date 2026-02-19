@@ -25,6 +25,11 @@ Thumbs.db
 *.log
 npm-debug.log*
 
+# Prisma generated client (test only)
+packages/state-prisma/tests/generated/
+*.sqlite
+*.sqlite-journal
+
 # Claude Code local settings
 .claude/
 
