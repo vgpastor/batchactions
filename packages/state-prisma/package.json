@@ -1,0 +1,80 @@
+{
+  "name": "@batchactions/state-prisma",
+  "version": "0.0.1",
+  "description": "Prisma persistence adapter for batch jobs and distributed workers with state storage, atomic claims, and job recovery",
+  "type": "module",
+  "exports": {
+    ".": {
+      "types": "./dist/index.d.ts",
+      "import": "./dist/index.js",
+      "require": "./dist/index.cjs"
+    }
+  },
+  "main": "./dist/index.cjs",
+  "module": "./dist/index.js",
+  "types": "./dist/index.d.ts",
+  "files": [
+    "dist",
+    "prisma",
+    "LICENSE"
+  ],
+  "bin": {
+    "batchactions-prisma": "./dist/cli/init.js"
+  },
+  "scripts": {
+    "build": "tsup",
+    "prisma:generate": "prisma generate --schema=tests/prisma/schema.prisma",
+    "pretest": "npm run prisma:generate",
+    "test": "vitest run",
+    "test:watch": "vitest",
+    "typecheck": "tsc --noEmit",
+    "lint": "eslint src/ tests/",
+    "lint:fix": "eslint src/ tests/ --fix",
+    "format": "prettier --write .",
+    "format:check": "prettier --check ."
+  },
+  "keywords": [
+    "prisma",
+    "state-store",
+    "distributed-state",
+    "job-persistence",
+    "batch-processing",
+    "distributed-workers",
+    "sql",
+    "postgresql",
+    "mysql",
+    "sqlite",
+    "typescript",
+    "nodejs"
+  ],
+  "license": "MIT",
+  "author": "Victor Garcia <vgpastor@ingenierosweb.co>",
+  "homepage": "https://github.com/vgpastor/batchactions/tree/main/packages/state-prisma#readme",
+  "bugs": {
+    "url": "https://github.com/vgpastor/batchactions/issues"
+  },
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/vgpastor/batchactions",
+    "directory": "packages/state-prisma"
+  },
+  "engines": {
+    "node": ">=20.0.0"
+  },
+  "peerDependencies": {
+    "@batchactions/core": ">=0.0.1"
+  },
+  "devDependencies": {
+    "@batchactions/core": "*",
+    "@types/node": "^22.13.4",
+    "@typescript-eslint/eslint-plugin": "^8.56.0",
+    "@typescript-eslint/parser": "^8.56.0",
+    "eslint": "^9.21.0",
+    "eslint-config-prettier": "^10.0.1",
+    "prisma": "^6.0.0",
+    "@prisma/client": "^6.0.0",
+    "tsup": "^8.5.1",
+    "typescript": "^5.7.3",
+    "vitest": "^4.0.0"
+  }
+}
