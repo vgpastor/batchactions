@@ -5,7 +5,7 @@
     "packages/*"
   ],
   "scripts": {
-    "build": "npm run build -w packages/core && npm run build -w packages/import && npm run build -w packages/distributed && npm run build -w packages/state-sequelize",
+    "build": "npm run build -w packages/core && npm run build -w packages/import && npm run build -w packages/distributed && npm run build -w packages/state-sequelize && npm run build -w packages/state-prisma",
     "test": "npm run test --workspaces --if-present",
     "typecheck": "npm run typecheck --workspaces --if-present",
     "lint": "npm run lint --workspaces --if-present",

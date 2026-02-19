@@ -12,6 +12,7 @@ Public npm monorepo for backend-agnostic batch data processing with schema valid
 | `@batchactions/import` | Import-specific layer — schema validation, parsers (CSV/JSON/XML), template generation, `BulkImport` facade | `packages/import/` |
 | `@batchactions/distributed` | Distributed multi-worker batch processing — prepare/claim/process model | `packages/distributed/` |
 | `@batchactions/state-sequelize` | Sequelize v6 adapter for `StateStore` + `DistributedStateStore` ports | `packages/state-sequelize/` |
+| `@batchactions/state-prisma` | Prisma v6/v7 adapter for `StateStore` + `DistributedStateStore` ports | `packages/state-prisma/` |
 
 ## Architecture
 
@@ -61,6 +62,7 @@ packages/import/src/
 - `@batchactions/import` depends on `@batchactions/core` (peer dependency).
 - `@batchactions/distributed` depends on `@batchactions/core` and `@batchactions/import` (peer dependencies).
 - `@batchactions/state-sequelize` depends on `@batchactions/core` and `sequelize` (peer dependencies).
+- `@batchactions/state-prisma` depends on `@batchactions/core` (peer dependency). User provides their own PrismaClient with batchactions models.
 
 ### Key domain concepts
 
@@ -154,6 +156,7 @@ npm test -w @batchactions/core
 npm test -w @batchactions/import
 npm test -w @batchactions/distributed
 npm test -w @batchactions/state-sequelize
+npm test -w @batchactions/state-prisma
 ```
 
 ### Test configuration
@@ -179,7 +182,7 @@ npm run build    # tsup across all workspaces → dist/ (ESM + CJS + .d.ts)
 - Path aliases (`@domain/*`, `@application/*`, `@infrastructure/*`) are for dev/test only in `@batchactions/core` — not used in source code (all imports are relative).
 - Target: ES2020 for maximum compatibility (Node 20+, modern browsers).
 - `globalThis.crypto.randomUUID()` requires Node.js >= 20.
-- Build order: `core` → `import` → `distributed` / `state-sequelize` (core must build first for tsc resolution via package `exports`).
+- Build order: `core` → `import` → `distributed` / `state-sequelize` / `state-prisma` (core must build first for tsc resolution via package `exports`).
 
 ## Public API Surface
 
@@ -218,6 +221,13 @@ npm run build    # tsup across all workspaces → dist/ (ESM + CJS + .d.ts)
 ### `@batchactions/state-sequelize`
 
 - `SequelizeStateStore` class + `SequelizeStateStoreOptions`
+
+### `@batchactions/state-prisma`
+
+- `PrismaStateStore` class + `PrismaStateStoreOptions`
+- `PrismaBatchactionsClient` interface (minimal PrismaClient contract)
+- Row types: `BatchactionsJobRow`, `BatchactionsRecordRow`, `BatchactionsBatchRow`
+- CLI helper: `npx batchactions-prisma init` to inject models into user's schema
 
 ## Breaking Changes Policy
 
@@ -294,12 +304,21 @@ Monorepo refactored from `@bulkimport/core` to `@batchactions` with 4 packages. 
 - Atomic batch claiming, optimistic locking, stale batch recovery, exactly-once job finalization.
 - Tables: `batchactions_jobs`, `batchactions_records`, `batchactions_batches`.
 
+**@batchactions/state-prisma:**
+- Prisma v6/v7 adapter for `StateStore` + `DistributedStateStore` ports.
+- Compatible with any Prisma-supported database (PostgreSQL, MySQL, MariaDB, SQLite, SQL Server, CockroachDB).
+- User provides their own PrismaClient with batchactions models (dependency injection).
+- CLI helper: `npx batchactions-prisma init` to inject models into user's schema.
+- Atomic batch claiming with optimistic locking, stale batch recovery, exactly-once job finalization.
+- JSON fields serialized as strings for cross-database compatibility (Json columns and String/TEXT columns).
+- Tables: `batchactions_jobs`, `batchactions_records`, `batchactions_batches`.
+
 **Monorepo:**
 - npm workspaces with `packages/*` pattern.
 - Shared `tsconfig.base.json` extended by all packages.
 - ESLint 9 flat config + Prettier configured per package.
 - `vitest.workspace.ts` at root for unified test runs.
-- 448+ tests passing across all packages.
+- 515+ tests passing across all packages.
 
 ### Known Gaps
 
