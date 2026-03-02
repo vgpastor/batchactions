@@ -5,6 +5,23 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [0.0.5] - 2026-03-02 — `@batchactions/core` only
+
+### Added
+
+- **`BatchEngine.fromRecords()`** (`@batchactions/core`) — Process in-memory data (arrays, sync/async iterables) directly, without the `DataSource` + parser pipeline. All engine features (batching, concurrency, retries, hooks, events) work identically. Ideal for processing database results, API responses, or any pre-loaded data.
+
+### Changed
+
+- **Root README repositioned** — Tagline, value proposition, and examples updated to reflect that `@batchactions/core` is a generic batch processing engine, not just an import tool. New Quick Start example shows a messaging gateway use case with `fromRecords()`, concurrency, and retries.
+
+## [0.0.3] - 2026-02-18
+
+### Changed
+
+- **Documentation** — Per-package READMEs with full API reference, usage examples, and architecture guides. Root README updated with package chooser guidance and trust signals (badges, links to examples).
+- **Package metadata** — `repository`, `homepage`, `bugs`, and `keywords` fields added to all `package.json` files.
+
 ## [0.0.2] - 2026-02-18
 
 ### Changed
