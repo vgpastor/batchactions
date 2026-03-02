@@ -41,8 +41,11 @@ export class StartJob {
 
     const source = this.ctx.source;
     const parser = this.ctx.parser;
-    if (!source || !parser) {
-      throw new Error('Source and parser must be configured. Call .from(source, parser) first.');
+    const recordIterator = this.ctx.recordIterator;
+    if (!recordIterator && (!source || !parser)) {
+      throw new Error(
+        'Source and parser must be configured. Call .from(source, parser) or .fromRecords(records) first.',
+      );
     }
 
     // Yield to next microtask so handlers registered after start() on the same tick receive this event
@@ -57,10 +60,14 @@ export class StartJob {
     });
 
     try {
+      const records = recordIterator
+        ? this.streamFromIterator(recordIterator)
+        : this.streamRecords(source as DataSource, parser as Parser);
+
       if (this.ctx.maxConcurrentBatches > 1) {
-        await this.processWithConcurrency(source, parser, processor);
+        await this.processWithConcurrency(records, processor);
       } else {
-        await this.processSequentially(source, parser, processor);
+        await this.processSequentially(records, processor);
       }
 
       if (!this.ctx.abortController.signal.aborted && this.ctx.status !== 'ABORTED') {
@@ -115,13 +122,31 @@ export class StartJob {
     }
   }
 
-  private async processSequentially(source: DataSource, parser: Parser, processor: RecordProcessorFn): Promise<void> {
+  private async *streamFromIterator(
+    iterator: Iterable<RawRecord> | AsyncIterable<RawRecord>,
+  ): AsyncIterable<ProcessedRecord> {
+    let recordIndex = this.ctx.totalRecords;
+
+    for await (const raw of iterator) {
+      if (this.ctx.abortController?.signal.aborted) return;
+      await this.ctx.checkPause();
+
+      yield createPendingRecord(recordIndex, raw);
+      recordIndex++;
+      this.ctx.totalRecords = recordIndex;
+    }
+  }
+
+  private async processSequentially(
+    records: AsyncIterable<ProcessedRecord>,
+    processor: RecordProcessorFn,
+  ): Promise<void> {
     const splitter = new BatchSplitter(this.ctx.batchSize);
 
-    for await (const { records, batchIndex } of splitter.split(this.streamRecords(source, parser))) {
+    for await (const { records: batchRecords, batchIndex } of splitter.split(records)) {
       if (this.ctx.abortController?.signal.aborted || this.ctx.status === 'ABORTED') break;
       if (!this.ctx.completedBatchIndices.has(batchIndex)) {
-        await this.processStreamBatch(records, batchIndex, processor);
+        await this.processStreamBatch(batchRecords, batchIndex, processor);
 
         if (this.ctx.isChunkExhausted()) {
           this.ctx.chunkExhausted = true;
@@ -132,15 +157,14 @@ export class StartJob {
   }
 
   private async processWithConcurrency(
-    source: DataSource,
-    parser: Parser,
+    records: AsyncIterable<ProcessedRecord>,
     processor: RecordProcessorFn,
   ): Promise<void> {
     const maxConcurrency = this.ctx.maxConcurrentBatches;
     const splitter = new BatchSplitter(this.ctx.batchSize);
     const activeBatches = new Set<Promise<void>>();
 
-    for await (const { records, batchIndex } of splitter.split(this.streamRecords(source, parser))) {
+    for await (const { records: batchRecords, batchIndex } of splitter.split(records)) {
       if (this.ctx.abortController?.signal.aborted || this.ctx.status === 'ABORTED') break;
       if (this.ctx.completedBatchIndices.has(batchIndex)) continue;
 
@@ -148,7 +172,7 @@ export class StartJob {
         await Promise.race(activeBatches);
       }
 
-      const batchPromise: Promise<void> = this.processStreamBatch(records, batchIndex, processor).then(() => {
+      const batchPromise: Promise<void> = this.processStreamBatch(batchRecords, batchIndex, processor).then(() => {
         activeBatches.delete(batchPromise);
       });
       activeBatches.add(batchPromise);

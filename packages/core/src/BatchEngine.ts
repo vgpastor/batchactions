@@ -133,6 +133,29 @@ export class BatchEngine {
     return this;
   }
 
+  /**
+   * Set in-memory records as the data source, bypassing the `DataSource` + parser pipeline.
+   *
+   * Useful when the data is already available as objects (e.g., database query results,
+   * API responses, or any in-memory collection) and serializing to text just to parse
+   * it back would be wasteful.
+   *
+   * Accepts arrays, sync iterables, and async iterables for maximum flexibility.
+   *
+   * @example
+   * ```typescript
+   * const engine = new BatchEngine({ batchSize: 50, maxConcurrentBatches: 4 });
+   * engine.fromRecords(accounts);
+   * await engine.start(async (record) => { await healthCheck(record); });
+   * ```
+   *
+   * @returns `this` for chaining.
+   */
+  fromRecords(records: Iterable<RawRecord> | AsyncIterable<RawRecord>): this {
+    this.ctx.recordIterator = records;
+    return this;
+  }
+
   /** Subscribe to a lifecycle event. Returns `this` for chaining. */
   on<T extends EventType>(type: T, handler: (event: EventPayload<T>) => void): this {
     this.ctx.eventBus.on(type, handler);
@@ -162,6 +185,17 @@ export class BatchEngine {
    */
   async count(): Promise<number> {
     this.ctx.assertSourceConfigured();
+
+    // Direct record iterator path
+    if (this.ctx.recordIterator) {
+      let total = 0;
+      for await (const _record of this.ctx.recordIterator) {
+        void _record;
+        total++;
+      }
+      return total;
+    }
+
     const source = this.ctx.source as DataSource;
     const parser = this.ctx.parser as { parse(data: string | Buffer): AsyncIterable<RawRecord> | Iterable<RawRecord> };
     let total = 0;

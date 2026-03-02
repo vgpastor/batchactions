@@ -31,7 +31,7 @@ describe('BulkImport — uncovered branches', () => {
     it('should throw when calling start() without source configured', async () => {
       const importer = createImporter();
       await expect(importer.start(noop)).rejects.toThrow(
-        'Source and parser must be configured. Call .from(source, parser) first.',
+        'Source and parser must be configured. Call .from(source, parser) or .fromRecords(records) first.',
       );
     });
 

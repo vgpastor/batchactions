@@ -45,6 +45,47 @@ await engine.start(async (record) => {
 });
 ```
 
+## In-Memory Records
+
+When your data is already in memory (database results, API responses, etc.), skip the source/parser pipeline entirely:
+
+```typescript
+import { BatchEngine } from '@batchactions/core';
+
+const accounts = [
+  { id: 'acc-1', channel: 'email', status: 'active' },
+  { id: 'acc-2', channel: 'sms', status: 'active' },
+];
+
+const engine = new BatchEngine({
+  batchSize: 50,
+  maxConcurrentBatches: 4,
+  continueOnError: true,
+  maxRetries: 2,
+});
+
+engine.fromRecords(accounts);
+
+await engine.start(async (record) => {
+  await healthCheck(record);
+});
+```
+
+Also works with async generators for lazy evaluation:
+
+```typescript
+async function* fetchPages(): AsyncIterable<Record<string, unknown>> {
+  let page = 1;
+  while (true) {
+    const results = await api.getPage(page++);
+    if (results.length === 0) break;
+    for (const item of results) yield item;
+  }
+}
+
+engine.fromRecords(fetchPages());
+```
+
 ## Main Exports
 
 - `BatchEngine`
