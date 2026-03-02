@@ -188,7 +188,7 @@ npm run build    # tsup across all workspaces → dist/ (ESM + CJS + .d.ts)
 
 ### `@batchactions/core`
 
-- `BatchEngine` class + `BatchEngineConfig`, `ValidateFn` types
+- `BatchEngine` class + `BatchEngineConfig`, `ValidateFn` types — includes `fromRecords()` for direct in-memory processing
 - Domain model types: `JobState`, `JobConfig`, `JobProgress`, `JobSummary`, `ProcessedRecord`, `RawRecord`, `ParsedRecord`, `RecordStatus`, `Batch`, `ValidationResult`, `ValidationError`, `ErrorSeverity`, `ErrorCategory`
 - `JobStatus` and `BatchStatus` value enums (runtime exports)
 - `JobStatusResult` type (return type of `getStatus()`)
@@ -275,6 +275,7 @@ Monorepo refactored from `@bulkimport/core` to `@batchactions` with 4 packages. 
 - Deferred `job:started` event — emitted in the next microtask.
 - Lifecycle hooks (`JobHooks`) — 4 optional async hooks: `beforeValidate`, `afterValidate`, `beforeProcess`, `afterProcess`.
 - Retry mechanism — `maxRetries`, `retryDelayMs`, exponential backoff, `record:retried` event.
+- `fromRecords()` — direct in-memory record processing bypassing `DataSource` + parser pipeline. Accepts arrays, sync iterables, and async iterables. All engine features (batching, concurrency, retries, hooks, events) work identically.
 - `processChunk()` — serverless-friendly chunked processing with `maxRecords` and `maxDurationMs` limits.
 - Extended error model — `ValidationError` with `severity`, `category`, `suggestion`, `metadata`. Warning-severity errors are non-blocking.
 - Distributed processing types — `DistributedStateStore` port, `BatchReservation`, `ClaimBatchResult`, domain events.

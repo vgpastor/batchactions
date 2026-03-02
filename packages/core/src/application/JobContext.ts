@@ -36,6 +36,9 @@ export class JobContext {
   source: DataSource | null = null;
   parser: { parse(data: string | Buffer): AsyncIterable<RawRecord> | Iterable<RawRecord> } | null = null;
 
+  /** Direct record iterator for in-memory processing (set by `fromRecords()`). */
+  recordIterator: Iterable<RawRecord> | AsyncIterable<RawRecord> | null = null;
+
   jobId: string;
   status: JobStatus = 'CREATED';
   batches: Batch[] = [];
@@ -148,8 +151,11 @@ export class JobContext {
   }
 
   assertSourceConfigured(): void {
+    if (this.recordIterator) return;
     if (!this.source || !this.parser) {
-      throw new Error('Source and parser must be configured. Call .from(source, parser) first.');
+      throw new Error(
+        'Source and parser must be configured. Call .from(source, parser) or .fromRecords(records) first.',
+      );
     }
   }
 
