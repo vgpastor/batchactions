@@ -8,16 +8,18 @@
 [![npm state-sequelize](https://img.shields.io/npm/v/@batchactions/state-sequelize.svg)](https://www.npmjs.com/package/@batchactions/state-sequelize)
 [![npm state-prisma](https://img.shields.io/npm/v/@batchactions/state-prisma.svg)](https://www.npmjs.com/package/@batchactions/state-prisma)
 
-TypeScript libraries for bulk import pipelines: parse CSV/JSON/XML, validate schema, process at scale, and run with pause/resume or distributed workers.
+TypeScript libraries for backend-agnostic batch processing: process any collection at scale with validation, concurrency control, pause/resume, and distributed workers.
 
-This monorepo contains the packages needed to parse, validate, process, and persist large imports with support for pause/resume, serverless chunking, and distributed workers.
+Use it for data imports, mass notifications, batch API calls, health checks, migrations — anything that processes records one by one at scale.
 
 ## Why @batchactions
 
-- Designed for data imports, not generic background jobs
-- Built-in schema validation + preview before processing
+- Process any data source: files (CSV/JSON/XML), arrays, async iterables, database cursors
+- Built-in concurrency control, retries with exponential backoff, and error boundaries per record
 - Pause, resume, abort, and restore flows out of the box
 - Distributed mode with atomic batch claiming for multi-worker execution
+- Rich lifecycle events and hooks for observability and data enrichment
+- Schema validation + preview for import-specific workflows
 - Pluggable state stores and parsers so you can adapt to existing infrastructure
 
 ## Packages
@@ -50,13 +52,51 @@ npm install @batchactions/state-prisma
 
 ## Choose Your Package
 
-- Start with `@batchactions/import` for most CSV/JSON/XML import workflows
-- Add `@batchactions/core` if you need low-level orchestration and custom parser/source control
+- Start with `@batchactions/core` for any batch processing workflow (in-memory data, custom sources, full control)
+- Add `@batchactions/import` for CSV/JSON/XML import workflows with schema validation and preview
 - Add `@batchactions/distributed` when one process is not enough
 - Add `@batchactions/state-sequelize` for SQL-backed state with Sequelize
 - Add `@batchactions/state-prisma` for SQL-backed state with Prisma (v6 or v7)
 
 ## Quick Start
+
+### Batch processing with in-memory data
+
+Process any collection — database results, API responses, queued items — with concurrency, retries, and full observability:
+
+```typescript
+import { BatchEngine } from '@batchactions/core';
+
+const accounts = await db.accounts.findAll({ where: { status: 'active' } });
+
+const engine = new BatchEngine({
+  batchSize: 50,
+  maxConcurrentBatches: 4,
+  continueOnError: true,
+  maxRetries: 2,
+  retryDelayMs: 1000,
+});
+
+engine.fromRecords(accounts);
+
+engine.on('job:progress', (e) => console.log(`${e.progress.percentage}% done`));
+engine.on('record:failed', (e) => console.error(`Record ${e.index} failed: ${e.error}`));
+
+await engine.start(async (record) => {
+  await messagingGateway.send({
+    channel: record.preferredChannel,
+    to: record.contactInfo,
+    template: 'monthly-report',
+  });
+});
+
+const status = engine.getStatus();
+console.log(`Sent: ${status.progress.processedRecords}, Failed: ${status.progress.failedRecords}`);
+```
+
+### CSV import with schema validation
+
+For file-based imports with schema validation and preview:
 
 ```typescript
 import { BulkImport, CsvParser, BufferSource } from '@batchactions/import';
@@ -84,15 +124,17 @@ await importer.start(async (record) => {
 
 ## Why Not X?
 
-- Use queue-first tools (BullMQ, Agenda, Bree) when your main need is generic background jobs.
-- Use `@batchactions` when your main need is import-specific behavior: schema validation, preview, structured record errors, pause/resume, restore, and distributed batch claiming.
+- Use queue-first tools (BullMQ, Agenda, Bree) when your main need is generic background jobs with scheduling and priorities.
+- Use `@batchactions` when you need structured batch processing with per-record error tracking, pause/resume, retries, concurrency control, lifecycle events, and optional schema validation — whether for imports, notifications, migrations, or any record-by-record workflow.
 
 ## Core Features
 
-- Schema validation and transforms
-- Batch processing with configurable size and concurrency
+- Process any data: in-memory arrays, async iterables, CSV/JSON/XML files, streams, URLs
+- Batch processing with configurable size and concurrency (`maxConcurrentBatches`)
+- Per-record retries with exponential backoff
 - Pause, resume, abort, and restore flows
-- Rich lifecycle events (`job:*`, `batch:*`, `record:*`)
+- Rich lifecycle events (`job:*`, `batch:*`, `record:*`) and hooks
+- Schema validation, transforms, and preview (via `@batchactions/import`)
 - Serverless-friendly chunk processing (`processChunk`)
 - Distributed worker mode with atomic batch claiming
 - Pluggable architecture (sources, parsers, state stores)
