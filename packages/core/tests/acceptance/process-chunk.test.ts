@@ -180,6 +180,80 @@ describe('processChunk()', () => {
     expect(result2.totalProcessed).toBe(25);
   });
 
+  it('should not inflate totalRecords across restore() + processChunk() cycles (issue #43)', async () => {
+    const csv = generateCsv(20);
+    const stateStore = new InMemoryStateStore();
+    const config = createConfig({ stateStore, batchSize: 5 });
+
+    // First invocation: process 10 of 20 records
+    const engine1 = new BatchEngine(config);
+    engine1.from(new BufferSource(csv), simpleCsvParser());
+
+    const result1 = await engine1.processChunk(
+      async () => {
+        await Promise.resolve();
+      },
+      { maxRecords: 10 },
+    );
+
+    expect(result1.done).toBe(false);
+    expect(result1.processedRecords).toBe(10);
+
+    const jobId = result1.jobId;
+
+    // Second invocation: restore and re-feed the same source
+    const engine2 = await BatchEngine.restore(jobId, config);
+    expect(engine2).not.toBeNull();
+    engine2!.from(new BufferSource(csv), simpleCsvParser());
+
+    const result2 = await engine2!.processChunk(async () => {
+      await Promise.resolve();
+    });
+
+    // totalRecords must be 20 (the actual source size), NOT 40 (inflated)
+    const status2 = engine2!.getStatus();
+    expect(status2.progress.totalRecords).toBe(20);
+    expect(result2.totalProcessed).toBe(20);
+    expect(result2.done).toBe(true);
+    // Percentage should be 100% at completion
+    expect(status2.progress.percentage).toBe(100);
+    expect(status2.progress.pendingRecords).toBe(0);
+  });
+
+  it('should report correct progress percentage after restore() (issue #43)', async () => {
+    const csv = generateCsv(10);
+    const stateStore = new InMemoryStateStore();
+    const config = createConfig({ stateStore, batchSize: 5 });
+
+    // Process first 5 records
+    const engine1 = new BatchEngine(config);
+    engine1.from(new BufferSource(csv), simpleCsvParser());
+
+    const result1 = await engine1.processChunk(
+      async () => {
+        await Promise.resolve();
+      },
+      { maxRecords: 5 },
+    );
+
+    const jobId = result1.jobId;
+
+    // Restore and process remaining
+    const engine2 = await BatchEngine.restore(jobId, config);
+    expect(engine2).not.toBeNull();
+    engine2!.from(new BufferSource(csv), simpleCsvParser());
+
+    const result2 = await engine2!.processChunk(async () => {
+      await Promise.resolve();
+    });
+
+    expect(result2.done).toBe(true);
+    const status = engine2!.getStatus();
+    expect(status.progress.totalRecords).toBe(10);
+    expect(status.progress.percentage).toBe(100);
+    expect(status.progress.pendingRecords).toBe(0);
+  });
+
   it('should emit chunk:completed event', async () => {
     const csv = generateCsv(15);
     const engine = new BatchEngine(createConfig({ batchSize: 5 }));
