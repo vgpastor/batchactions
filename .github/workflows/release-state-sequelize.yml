@@ -1,6 +1,7 @@
 name: Release state-sequelize
 
 on:
+  workflow_dispatch:
   push:
     tags:
       - 'state-sequelize-v*'

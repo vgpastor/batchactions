@@ -1,0 +1,81 @@
+name: Version Guard
+
+on:
+  pull_request:
+    branches: [main]
+    paths:
+      - 'packages/*/package.json'
+
+permissions:
+  contents: read
+
+jobs:
+  check-versions:
+    name: Validate version bumps
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v6
+        with:
+          fetch-depth: 0
+
+      - name: Check that version changes are never downgrades
+        run: |
+          declare -A PACKAGES=(
+            ["core"]="packages/core/package.json"
+            ["import"]="packages/import/package.json"
+            ["distributed"]="packages/distributed/package.json"
+            ["state-sequelize"]="packages/state-sequelize/package.json"
+            ["state-prisma"]="packages/state-prisma/package.json"
+          )
+
+          HAS_ERROR=0
+
+          # semver_compare: returns 0 if a >= b, 1 if a < b
+          semver_compare() {
+            local a="$1" b="$2"
+            if [ "$a" = "$b" ]; then return 0; fi
+
+            local IFS=.
+            read -r a1 a2 a3 <<< "$a"
+            read -r b1 b2 b3 <<< "$b"
+
+            a1=${a1:-0}; a2=${a2:-0}; a3=${a3:-0}
+            b1=${b1:-0}; b2=${b2:-0}; b3=${b3:-0}
+
+            if [ "$a1" -gt "$b1" ]; then return 0; fi
+            if [ "$a1" -lt "$b1" ]; then return 1; fi
+            if [ "$a2" -gt "$b2" ]; then return 0; fi
+            if [ "$a2" -lt "$b2" ]; then return 1; fi
+            if [ "$a3" -ge "$b3" ]; then return 0; fi
+            return 1
+          }
+
+          for pkg in "${!PACKAGES[@]}"; do
+            FILE="${PACKAGES[$pkg]}"
+
+            # Skip if this file wasn't changed in this PR
+            if ! git diff --name-only "origin/main...HEAD" | grep -q "^${FILE}$"; then
+              continue
+            fi
+
+            PR_VERSION=$(node -p "require('./${FILE}').version")
+            MAIN_VERSION=$(git show origin/main:"${FILE}" 2>/dev/null | node -p "JSON.parse(require('fs').readFileSync('/dev/stdin','utf8')).version" 2>/dev/null || echo "0.0.0")
+
+            if [ "$PR_VERSION" = "$MAIN_VERSION" ]; then
+              echo "::notice::${pkg}: version unchanged ($PR_VERSION) — OK (bump not required)"
+              continue
+            fi
+
+            if semver_compare "$PR_VERSION" "$MAIN_VERSION"; then
+              echo "::notice::${pkg}: version bump $MAIN_VERSION -> $PR_VERSION — OK"
+            else
+              echo "::error::${pkg}: version downgrade detected ($MAIN_VERSION -> $PR_VERSION). Version must be >= $MAIN_VERSION"
+              HAS_ERROR=1
+            fi
+          done
+
+          if [ "$HAS_ERROR" -eq 1 ]; then
+            exit 1
+          fi
+
+          echo "All version checks passed."

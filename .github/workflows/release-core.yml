@@ -1,6 +1,7 @@
 name: Release Core
 
 on:
+  workflow_dispatch:
   push:
     tags:
       - 'core-v*'

@@ -1,6 +1,7 @@
 name: Release distributed
 
 on:
+  workflow_dispatch:
   push:
     tags:
       - 'distributed-v*'

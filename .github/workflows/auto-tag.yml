@@ -1,0 +1,91 @@
+name: Auto Tag & Release
+
+on:
+  push:
+    branches: [main]
+    paths:
+      - 'packages/*/package.json'
+
+permissions:
+  contents: write
+  actions: write
+
+jobs:
+  detect-and-tag:
+    name: Detect version bumps & trigger releases
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v6
+        with:
+          fetch-depth: 2
+
+      - name: Detect version changes, create tags, and trigger releases
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          declare -A PACKAGES=(
+            ["core"]="packages/core/package.json"
+            ["import"]="packages/import/package.json"
+            ["distributed"]="packages/distributed/package.json"
+            ["state-sequelize"]="packages/state-sequelize/package.json"
+            ["state-prisma"]="packages/state-prisma/package.json"
+          )
+
+          declare -A WORKFLOWS=(
+            ["core"]="release-core.yml"
+            ["import"]="release-import.yml"
+            ["distributed"]="release-distributed.yml"
+            ["state-sequelize"]="release-state-sequelize.yml"
+            ["state-prisma"]="release-state-prisma.yml"
+          )
+
+          TAGS_CREATED=()
+
+          for pkg in "${!PACKAGES[@]}"; do
+            FILE="${PACKAGES[$pkg]}"
+
+            # Skip if this file wasn't changed in this push
+            if ! git diff HEAD~1 --name-only | grep -q "^${FILE}$"; then
+              continue
+            fi
+
+            # Get current and previous versions
+            CURRENT=$(node -p "require('./${FILE}').version")
+            PREVIOUS=$(git show HEAD~1:"${FILE}" 2>/dev/null | node -p "JSON.parse(require('fs').readFileSync('/dev/stdin','utf8')).version" 2>/dev/null || echo "")
+
+            if [ -z "$PREVIOUS" ] || [ "$CURRENT" = "$PREVIOUS" ]; then
+              echo "::notice::${pkg}: version unchanged ($CURRENT), skipping"
+              continue
+            fi
+
+            TAG="${pkg}-v${CURRENT}"
+
+            # Check if tag already exists
+            if git tag -l "$TAG" | grep -q "$TAG"; then
+              echo "::warning::${pkg}: tag $TAG already exists, skipping"
+              continue
+            fi
+
+            echo "::notice::${pkg}: version changed $PREVIOUS -> $CURRENT, creating tag $TAG"
+            git tag "$TAG"
+            TAGS_CREATED+=("${pkg}")
+          done
+
+          if [ ${#TAGS_CREATED[@]} -eq 0 ]; then
+            echo "::notice::No new tags to create"
+            exit 0
+          fi
+
+          # Push all tags at once
+          git push origin --tags
+
+          # Trigger release workflows for each package
+          for pkg in "${TAGS_CREATED[@]}"; do
+            FILE="${PACKAGES[$pkg]}"
+            VERSION=$(node -p "require('./${FILE}').version")
+            TAG="${pkg}-v${VERSION}"
+            WORKFLOW="${WORKFLOWS[$pkg]}"
+
+            echo "::notice::Triggering ${WORKFLOW} on ref ${TAG}"
+            gh workflow run "$WORKFLOW" --ref "$TAG"
+          done
