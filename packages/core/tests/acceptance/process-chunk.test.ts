@@ -148,6 +148,30 @@ describe('processChunk()', () => {
     expect(result.processedRecords).toBeLessThan(100);
   });
 
+  it('should not deflate totalRecords when maxDurationMs cuts before full source consumption', async () => {
+    const csv = generateCsv(100);
+    const stateStore = new InMemoryStateStore();
+    const engine = new BatchEngine(createConfig({ stateStore, batchSize: 5 }));
+    engine.from(new BufferSource(csv), simpleCsvParser());
+
+    const result = await engine.processChunk(
+      async () => {
+        await new Promise((resolve) => setTimeout(resolve, 20));
+      },
+      { maxDurationMs: 150 },
+    );
+
+    expect(result.done).toBe(false);
+
+    const status = engine.getStatus();
+    // totalRecords must be at least the records already processed + failed
+    expect(status.progress.totalRecords).toBeGreaterThanOrEqual(
+      status.progress.processedRecords + status.progress.failedRecords,
+    );
+    // percentage should never falsely report 100% when not done
+    expect(status.progress.percentage).toBeLessThan(100);
+  });
+
   it('should work with restore() between chunks', async () => {
     const csv = generateCsv(25);
     const stateStore = new InMemoryStateStore();
