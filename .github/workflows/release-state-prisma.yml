@@ -1,6 +1,7 @@
 name: Release state-prisma
 
 on:
+  workflow_dispatch:
   push:
     tags:
       - 'state-prisma-v*'

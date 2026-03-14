@@ -1,6 +1,7 @@
 name: Release import
 
 on:
+  workflow_dispatch:
   push:
     tags:
       - 'import-v*'
