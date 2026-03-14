@@ -31,12 +31,17 @@ export class StartJob {
     this.ctx.abortController = new AbortController();
     this.ctx.startedAt = this.ctx.startedAt ?? Date.now();
 
+    // Always reset totalRecords — the source will be re-streamed and
+    // records re-counted.  Completed batches are skipped via
+    // completedBatchIndices, so the counter must reflect the actual
+    // source size, not accumulate across restore() cycles.
+    this.ctx.totalRecords = 0;
+
     if (this.ctx.completedBatchIndices.size === 0) {
       this.ctx.processedCount = 0;
       this.ctx.failedCount = 0;
       this.ctx.batches = [];
       this.ctx.batchIndexById = new Map();
-      this.ctx.totalRecords = 0;
     }
 
     const source = this.ctx.source;
