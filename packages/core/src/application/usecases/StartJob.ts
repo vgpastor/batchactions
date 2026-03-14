@@ -21,6 +21,9 @@ interface Parser {
 
 /** Use case: process all records through the provided callback. */
 export class StartJob {
+  /** Whether the source stream was fully consumed (not interrupted by chunk limits). */
+  private sourceFullyConsumed = false;
+
   constructor(private readonly ctx: JobContext) {}
 
   async execute(processor: RecordProcessorFn): Promise<void> {
@@ -76,7 +79,7 @@ export class StartJob {
       }
 
       if (!this.ctx.abortController.signal.aborted && this.ctx.status !== 'ABORTED') {
-        if (this.ctx.chunkExhausted) {
+        if (this.ctx.chunkExhausted && !this.sourceFullyConsumed) {
           this.ctx.transitionTo('PAUSED');
         } else {
           this.ctx.transitionTo('COMPLETED');
@@ -119,9 +122,11 @@ export class StartJob {
         if (this.ctx.abortController?.signal.aborted) return;
         await this.ctx.checkPause();
 
-        yield createPendingRecord(recordIndex, raw);
+        // Update totalRecords before yielding so that progress events
+        // emitted while the generator is paused see the correct count.
         recordIndex++;
         this.ctx.totalRecords = recordIndex;
+        yield createPendingRecord(recordIndex - 1, raw);
       }
       if (this.ctx.abortController?.signal.aborted) return;
     }
@@ -136,9 +141,9 @@ export class StartJob {
       if (this.ctx.abortController?.signal.aborted) return;
       await this.ctx.checkPause();
 
-      yield createPendingRecord(recordIndex, raw);
       recordIndex++;
       this.ctx.totalRecords = recordIndex;
+      yield createPendingRecord(recordIndex - 1, raw);
     }
   }
 
@@ -147,14 +152,28 @@ export class StartJob {
     processor: RecordProcessorFn,
   ): Promise<void> {
     const splitter = new BatchSplitter(this.ctx.batchSize);
+    const iterator = splitter.split(records)[Symbol.asyncIterator]();
 
-    for await (const { records: batchRecords, batchIndex } of splitter.split(records)) {
+    for (;;) {
+      const next = await iterator.next();
+      if (next.done) {
+        this.sourceFullyConsumed = true;
+        break;
+      }
+
+      const { records: batchRecords, batchIndex } = next.value;
+
       if (this.ctx.abortController?.signal.aborted || this.ctx.status === 'ABORTED') break;
       if (!this.ctx.completedBatchIndices.has(batchIndex)) {
         await this.processStreamBatch(batchRecords, batchIndex, processor);
 
         if (this.ctx.isChunkExhausted()) {
           this.ctx.chunkExhausted = true;
+          // Peek at the next element to check if the stream is done
+          const peek = await iterator.next();
+          if (peek.done) {
+            this.sourceFullyConsumed = true;
+          }
           break;
         }
       }
@@ -168,8 +187,17 @@ export class StartJob {
     const maxConcurrency = this.ctx.maxConcurrentBatches;
     const splitter = new BatchSplitter(this.ctx.batchSize);
     const activeBatches = new Set<Promise<void>>();
+    const iterator = splitter.split(records)[Symbol.asyncIterator]();
 
-    for await (const { records: batchRecords, batchIndex } of splitter.split(records)) {
+    for (;;) {
+      const next = await iterator.next();
+      if (next.done) {
+        this.sourceFullyConsumed = true;
+        break;
+      }
+
+      const { records: batchRecords, batchIndex } = next.value;
+
       if (this.ctx.abortController?.signal.aborted || this.ctx.status === 'ABORTED') break;
       if (this.ctx.completedBatchIndices.has(batchIndex)) continue;
 
@@ -184,6 +212,10 @@ export class StartJob {
 
       if (this.ctx.isChunkExhausted()) {
         this.ctx.chunkExhausted = true;
+        const peek = await iterator.next();
+        if (peek.done) {
+          this.sourceFullyConsumed = true;
+        }
         break;
       }
     }
