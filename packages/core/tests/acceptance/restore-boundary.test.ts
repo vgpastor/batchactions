@@ -106,13 +106,13 @@ describe('Multi-cycle restore: counter invariants', () => {
     const config: BatchEngineConfig = { batchSize: 5, stateStore };
 
     // Cycle 1: process 10 of 30
-    const { engine: e1, result: r1 } = await chunkCycle(null, config, csv, noop, { maxRecords: 10 });
+    const { result: r1 } = await chunkCycle(null, config, csv, noop, { maxRecords: 10 });
     expect(r1.done).toBe(false);
     expect(r1.processedRecords).toBe(10);
     const jobId = r1.jobId;
 
     // Cycle 2: restore, process 10 more
-    const { engine: e2, result: r2 } = await chunkCycle(jobId, config, csv, noop, { maxRecords: 10 });
+    const { result: r2 } = await chunkCycle(jobId, config, csv, noop, { maxRecords: 10 });
     expect(r2.done).toBe(false);
     expect(r2.totalProcessed).toBe(20);
 
@@ -445,7 +445,7 @@ describe('Retry with restore()', () => {
     const engine1 = new BatchEngine(config);
     engine1.from(new BufferSource(csv), simpleCsvParser());
     const r1 = await engine1.processChunk(
-      async () => {
+      () => {
         callCount++;
         if (callCount % 5 === 0) {
           throw new Error('transient');
@@ -457,7 +457,7 @@ describe('Retry with restore()', () => {
 
     // Restore and finish
     callCount = 0;
-    const { engine: e2, result: r2 } = await chunkCycle(jobId, config, csv, async () => {
+    const { engine: e2, result: r2 } = await chunkCycle(jobId, config, csv, () => {
       callCount++;
       if (callCount % 7 === 0) {
         throw new Error('transient');
@@ -504,7 +504,7 @@ describe('fromRecords() with restore()', () => {
   });
 
   it('should work with async iterable + restore', async () => {
-    async function* generateRecords(count: number): AsyncIterable<RawRecord> {
+    function* generateRecords(count: number): Iterable<RawRecord> {
       for (let i = 0; i < count; i++) {
         yield { id: String(i), value: `v${String(i)}` };
       }
@@ -637,7 +637,7 @@ describe('State store consistency', () => {
     expect(state1?.totalRecords).toBeLessThanOrEqual(15);
 
     // Cycle 2
-    const { result: r2 } = await chunkCycle(jobId, config, csv, noop, { maxRecords: 5 });
+    await chunkCycle(jobId, config, csv, noop, { maxRecords: 5 });
     const state2 = await stateStore.getJobState(jobId);
     expect(state2?.totalRecords).toBeLessThanOrEqual(15);
 
@@ -842,7 +842,7 @@ describe('start() with restore', () => {
 
     const processed: RawRecord[] = [];
     engine2!.from(new BufferSource(csv), simpleCsvParser());
-    await engine2!.start(async (record) => {
+    await engine2!.start((record) => {
       processed.push(record);
     });
 
@@ -881,7 +881,7 @@ describe('start() with restore', () => {
 
     const processed: RawRecord[] = [];
     engine!.from(new BufferSource(csv), simpleCsvParser());
-    await engine!.start(async (record) => {
+    await engine!.start((record) => {
       processed.push(record);
     });
 
