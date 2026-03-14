@@ -5,15 +5,20 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
-## [0.0.5] - 2026-03-02 — `@batchactions/core` only
+## [0.0.5] - 2026-03-14 — `@batchactions/core` only
 
 ### Added
 
 - **`BatchEngine.fromRecords()`** (`@batchactions/core`) — Process in-memory data (arrays, sync/async iterables) directly, without the `DataSource` + parser pipeline. All engine features (batching, concurrency, retries, hooks, events) work identically. Ideal for processing database results, API responses, or any pre-loaded data.
 
+### Fixed
+
+- **`totalRecords` inflation across `restore()` + `processChunk()` cycles** ([#43](https://github.com/vgpastor/batchactions/issues/43)) — When calling `restore()` followed by `processChunk()` multiple times, `totalRecords` was accumulating across cycles instead of reflecting the actual source size. The counter now resets on each `StartJob.execute()` call, preserving the invariant `processedRecords + failedRecords + pendingRecords = totalRecords`.
+
 ### Changed
 
 - **Root README repositioned** — Tagline, value proposition, and examples updated to reflect that `@batchactions/core` is a generic batch processing engine, not just an import tool. New Quick Start example shows a messaging gateway use case with `fromRecords()`, concurrency, and retries.
+- **Comprehensive boundary tests** — 2,400+ lines of new tests across `core`, `import`, and `distributed` packages covering restore cycles, progress invariants, edge cases, and distributed batch boundaries.
 
 ## [0.0.3] - 2026-02-18
 

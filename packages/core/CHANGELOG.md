@@ -5,11 +5,15 @@ All notable changes to this package will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
-## [0.0.5] - 2026-03-02
+## [0.0.5] - 2026-03-14
 
 ### Added
 
 - **`fromRecords()` method on `BatchEngine`** — Process in-memory data directly without the `DataSource` + parser pipeline. Accepts arrays, sync iterables, and async iterables. Avoids unnecessary serialize/parse roundtrips when records are already available as objects. All engine features (batching, concurrency, retries, hooks, events) work identically. 19 acceptance tests.
+
+### Fixed
+
+- **`totalRecords` inflation across `restore()` + `processChunk()` cycles** ([#43](https://github.com/vgpastor/batchactions/issues/43)) — `StartJob.execute()` now resets `totalRecords = 0` before re-streaming the source during a restore cycle. Added `sourceFullyConsumed` flag to track whether the source has been fully consumed. The invariant `processedRecords + failedRecords + pendingRecords = totalRecords` now holds across all restore cycles. 1,400+ lines of new boundary tests.
 
 ### Changed
 
