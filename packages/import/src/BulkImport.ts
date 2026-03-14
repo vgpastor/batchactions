@@ -184,7 +184,11 @@ export class BulkImport {
    */
   static async restore(jobId: string, config: BulkImportConfig): Promise<BulkImport | null> {
     const stateStore = config.stateStore;
-    if (!stateStore) return null;
+    if (!stateStore) {
+      throw new Error(
+        'A stateStore is required to restore a job. Provide the same StateStore used when the job was created.',
+      );
+    }
 
     const jobState = await stateStore.getJobState(jobId);
     if (!jobState) return null;

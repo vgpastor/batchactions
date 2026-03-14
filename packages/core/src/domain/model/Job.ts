@@ -8,6 +8,9 @@ export interface JobConfig {
   readonly batchSize: number;
   readonly maxConcurrentBatches?: number;
   readonly continueOnError?: boolean;
+  readonly maxRetries?: number;
+  readonly retryDelayMs?: number;
+  readonly skipEmptyRows?: boolean;
 }
 
 /** Serialisable state of a job (for persistence via StateStore). */

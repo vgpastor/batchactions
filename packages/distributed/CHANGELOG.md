@@ -5,6 +5,13 @@ All notable changes to this package will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [0.0.5] - 2026-03-14
+
+### Fixed
+
+- **`hookCtx.totalRecords` reports batch size instead of job total** — `ProcessDistributedBatch` now reads the job's `totalRecords` from the state store and passes it to `HookContext` and `ProcessingContext`. Previously, it used `records.length` (the current batch size), causing hooks and processors to receive incorrect progress data.
+- **`job:completed` event summary uses batch counts instead of record counts** — The `JobSummary` in the `job:completed` event now reports record-level totals (`total`, `processed`, `failed`, `skipped`) aggregated from all batches, and a real `elapsedMs` value. Previously, it reported batch counts and `elapsedMs: 0`.
+
 ## [0.0.4] - 2026-02-19
 
 ### Changed

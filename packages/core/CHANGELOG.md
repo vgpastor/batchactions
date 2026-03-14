@@ -5,6 +5,18 @@ All notable changes to this package will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [0.0.7] - 2026-03-14
+
+### Fixed
+
+- **`restore()` ignores persisted config values** — `BatchEngine.restore()` now uses all persisted configuration (`batchSize`, `maxConcurrentBatches`, `continueOnError`, `maxRetries`, `retryDelayMs`, `skipEmptyRows`) from the job state, instead of relying on what the caller passes. This prevents silent behavior changes when restoring jobs in serverless `processChunk()` cycles.
+- **`saveState()` missing config fields** — `JobContext.saveState()` now persists `maxConcurrentBatches`, `maxRetries`, `retryDelayMs`, and `skipEmptyRows` to `JobConfig`. Previously only `batchSize` and `continueOnError` were saved.
+- **`batchIndexById` map not rebuilt on restore** — `BatchEngine.restore()` now rebuilds the `batchIndexById` map from restored batches, preventing `updateBatchStatus()` from silently failing for pre-existing batch IDs.
+
+### Changed
+
+- **`JobConfig` type extended** — Added optional `maxRetries`, `retryDelayMs`, and `skipEmptyRows` fields to `JobConfig` for full config persistence.
+
 ## [0.0.6] - 2026-03-14
 
 ### Fixed

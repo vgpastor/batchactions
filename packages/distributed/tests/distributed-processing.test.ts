@@ -533,6 +533,55 @@ describe('Distributed Processing', () => {
 
       expect(processed).toHaveLength(10);
     });
+
+    it('should pass job total records (not batch size) in hookCtx and ProcessingContext', async () => {
+      const totalRecordsValues: number[] = [];
+      const config: DistributedImportConfig = {
+        ...createConfig(stateStore),
+        hooks: {
+          beforeValidate: async (record, ctx) => {
+            totalRecordsValues.push(ctx.totalRecords);
+            return record;
+          },
+        },
+      };
+      const di = new DistributedImport(config);
+      const csv = generateCsv(12); // 3 batches of 5+5+2
+      const { jobId, totalRecords } = await di.prepare(new BufferSource(csv), new CsvParser());
+      expect(totalRecords).toBe(12);
+
+      // Process first batch
+      await di.processWorkerBatch(jobId, async () => {}, 'w1');
+
+      // All hookCtx.totalRecords should be 12 (job total), not 5 (batch size)
+      expect(totalRecordsValues.length).toBeGreaterThan(0);
+      expect(totalRecordsValues.every((v) => v === 12)).toBe(true);
+    });
+
+    it('should emit job:completed with record-level counts, not batch counts', async () => {
+      const di = new DistributedImport(createConfig(stateStore));
+      const csv = generateCsv(10); // 2 batches of 5
+      const { jobId } = await di.prepare(new BufferSource(csv), new CsvParser());
+
+      type Summary = { total: number; processed: number; failed: number; skipped: number; elapsedMs: number };
+      let completedSummary: Summary | null = null;
+      di.on('job:completed', (e) => {
+        completedSummary = e.summary;
+      });
+
+      // Process all batches
+      let r = await di.processWorkerBatch(jobId, async () => {}, 'w1');
+      while (r.claimed && !r.jobComplete) {
+        r = await di.processWorkerBatch(jobId, async () => {}, 'w1');
+      }
+
+      expect(completedSummary).not.toBeNull();
+      // Should be record counts (10), not batch counts (2)
+      expect(completedSummary!.total).toBe(10);
+      expect(completedSummary!.processed).toBe(10);
+      expect(completedSummary!.failed).toBe(0);
+      expect(completedSummary!.elapsedMs).toBeGreaterThanOrEqual(0);
+    });
   });
 
   describe('error cases', () => {

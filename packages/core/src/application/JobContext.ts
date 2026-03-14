@@ -126,7 +126,11 @@ export class JobContext {
       id: this.jobId,
       config: {
         batchSize: this.batchSize,
+        maxConcurrentBatches: this.maxConcurrentBatches,
         continueOnError: this.continueOnError,
+        maxRetries: this.maxRetries,
+        retryDelayMs: this.retryDelayMs,
+        skipEmptyRows: this.skipEmptyRows,
       },
       status: this.status,
       batches: this.batches,

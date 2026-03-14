@@ -102,12 +102,30 @@ export class BatchEngine {
 
     if (!jobState) return null;
 
-    const instance = new BatchEngine(config);
+    // Use persisted config values — the restored job must use the same
+    // engine configuration that was active when it was created,
+    // regardless of what the caller passes.
+    const persistedConfig = jobState.config;
+    const instance = new BatchEngine({
+      ...config,
+      batchSize: persistedConfig.batchSize,
+      continueOnError: persistedConfig.continueOnError ?? config.continueOnError,
+      maxConcurrentBatches: persistedConfig.maxConcurrentBatches ?? config.maxConcurrentBatches,
+      maxRetries: persistedConfig.maxRetries ?? config.maxRetries,
+      retryDelayMs: persistedConfig.retryDelayMs ?? config.retryDelayMs,
+      skipEmptyRows: persistedConfig.skipEmptyRows ?? config.skipEmptyRows,
+    });
     instance.ctx.jobId = jobId;
     instance.ctx.status = jobState.status;
     instance.ctx.batches = [...jobState.batches];
     instance.ctx.totalRecords = jobState.totalRecords;
     instance.ctx.startedAt = jobState.startedAt;
+
+    // Rebuild batchIndexById map from restored batches
+    for (let i = 0; i < instance.ctx.batches.length; i++) {
+      const b = instance.ctx.batches[i];
+      if (b) instance.ctx.batchIndexById.set(b.id, i);
+    }
 
     for (const batch of jobState.batches) {
       if (batch.status === 'COMPLETED') {
