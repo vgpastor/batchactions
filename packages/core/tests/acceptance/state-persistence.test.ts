@@ -200,6 +200,169 @@ describe('State persistence and restore', () => {
       // Total processed = 10 (restored) + 5 (new) = 15
       expect(status.progress.processedRecords).toBe(15);
     });
+
+    it('should use persisted batchSize even when caller omits it', async () => {
+      const stateStore = new InMemoryStateStore();
+
+      // Simulate a partially completed job with batchSize=5
+      const jobId = 'test-restore-batchsize';
+      await stateStore.saveJobState({
+        id: jobId,
+        config: { batchSize: 5 },
+        status: 'FAILED',
+        batches: [{ id: 'b-0', index: 0, status: 'COMPLETED', records: [], processedCount: 5, failedCount: 0 }],
+        totalRecords: 10,
+        startedAt: Date.now() - 1000,
+      });
+
+      // Restore WITHOUT passing batchSize — should use persisted value (5), not default (100)
+      const csv = generateCsv(10);
+      const restored = await BatchEngine.restore(jobId, { stateStore });
+      expect(restored).not.toBeNull();
+
+      restored!.from(new BufferSource(csv), simpleCsvParser());
+
+      const processedInRestore: RawRecord[] = [];
+      await restored!.start(async (record) => {
+        processedInRestore.push(record);
+        await Promise.resolve();
+      });
+
+      // Batch 0 (5 records) was completed — only batch 1 (5 records) should be processed
+      expect(processedInRestore).toHaveLength(5);
+
+      const status = restored!.getStatus();
+      expect(status.status).toBe('COMPLETED');
+      expect(status.progress.processedRecords).toBe(10);
+      // Should have 2 batches of 5, not 1 batch of 100
+      expect(status.progress.totalBatches).toBe(2);
+    });
+
+    it('should use persisted batchSize even when caller passes a different value', async () => {
+      const stateStore = new InMemoryStateStore();
+
+      // Simulate a partially completed job with batchSize=3
+      const jobId = 'test-restore-batchsize-override';
+      await stateStore.saveJobState({
+        id: jobId,
+        config: { batchSize: 3 },
+        status: 'FAILED',
+        batches: [{ id: 'b-0', index: 0, status: 'COMPLETED', records: [], processedCount: 3, failedCount: 0 }],
+        totalRecords: 9,
+        startedAt: Date.now() - 1000,
+      });
+
+      // Restore with a DIFFERENT batchSize — persisted value (3) should win
+      const csv = generateCsv(9);
+      const restored = await BatchEngine.restore(jobId, { batchSize: 50, stateStore });
+      expect(restored).not.toBeNull();
+
+      restored!.from(new BufferSource(csv), simpleCsvParser());
+
+      const processedInRestore: RawRecord[] = [];
+      await restored!.start(async (record) => {
+        processedInRestore.push(record);
+        await Promise.resolve();
+      });
+
+      // Batch 0 (3 records) was completed — remaining 6 records in 2 batches of 3
+      expect(processedInRestore).toHaveLength(6);
+
+      const status = restored!.getStatus();
+      expect(status.status).toBe('COMPLETED');
+      expect(status.progress.processedRecords).toBe(9);
+      // Should have 3 batches of 3, not different sizing
+      expect(status.progress.totalBatches).toBe(3);
+    });
+
+    it('should persist and restore maxConcurrentBatches, maxRetries, retryDelayMs, skipEmptyRows', async () => {
+      const stateStore = new InMemoryStateStore();
+
+      const csv = generateCsv(6);
+      const engine = new BatchEngine({
+        batchSize: 3,
+        maxConcurrentBatches: 4,
+        maxRetries: 3,
+        retryDelayMs: 500,
+        skipEmptyRows: true,
+        continueOnError: true,
+        stateStore,
+      });
+
+      engine.from(new BufferSource(csv), simpleCsvParser());
+      await engine.start(async () => {
+        await Promise.resolve();
+      });
+
+      const jobId = engine.getJobId();
+
+      // Verify all config values are persisted
+      const jobState = await stateStore.getJobState(jobId);
+      expect(jobState).not.toBeNull();
+      expect(jobState!.config.batchSize).toBe(3);
+      expect(jobState!.config.maxConcurrentBatches).toBe(4);
+      expect(jobState!.config.maxRetries).toBe(3);
+      expect(jobState!.config.retryDelayMs).toBe(500);
+      expect(jobState!.config.skipEmptyRows).toBe(true);
+      expect(jobState!.config.continueOnError).toBe(true);
+    });
+
+    it('should use persisted maxConcurrentBatches even when caller omits it', async () => {
+      const stateStore = new InMemoryStateStore();
+
+      const jobId = 'test-restore-concurrency';
+      await stateStore.saveJobState({
+        id: jobId,
+        config: { batchSize: 5, maxConcurrentBatches: 4, continueOnError: true },
+        status: 'FAILED',
+        batches: [{ id: 'b-0', index: 0, status: 'COMPLETED', records: [], processedCount: 5, failedCount: 0 }],
+        totalRecords: 10,
+        startedAt: Date.now() - 1000,
+      });
+
+      // Restore WITHOUT passing maxConcurrentBatches — should use persisted value (4)
+      const csv = generateCsv(10);
+      const restored = await BatchEngine.restore(jobId, { stateStore });
+      expect(restored).not.toBeNull();
+
+      restored!.from(new BufferSource(csv), simpleCsvParser());
+
+      const processedInRestore: RawRecord[] = [];
+      await restored!.start(async (record) => {
+        processedInRestore.push(record);
+        await Promise.resolve();
+      });
+
+      expect(processedInRestore).toHaveLength(5);
+      expect(restored!.getStatus().status).toBe('COMPLETED');
+    });
+
+    it('should rebuild batchIndexById map on restore', async () => {
+      const stateStore = new InMemoryStateStore();
+
+      // Run a full job with 10 records, batchSize=5, completing both batches
+      const csv = generateCsv(10);
+      const engine = new BatchEngine({
+        batchSize: 5,
+        stateStore,
+      });
+
+      engine.from(new BufferSource(csv), simpleCsvParser());
+      await engine.start(async () => {
+        await Promise.resolve();
+      });
+
+      const jobId = engine.getJobId();
+      const originalStatus = engine.getStatus();
+
+      // Restore from the completed job
+      const restored = await BatchEngine.restore(jobId, { stateStore });
+      expect(restored).not.toBeNull();
+
+      // The restored engine should have the same batch structure
+      const restoredStatus = restored!.getStatus();
+      expect(restoredStatus.batches).toHaveLength(originalStatus.batches.length);
+    });
   });
 
   describe('FileStateStore integration', () => {

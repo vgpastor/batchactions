@@ -109,6 +109,10 @@ export class ProcessDistributedBatch {
 
     const records = await this.stateStore.getBatchRecords(jobId, batchId);
 
+    // Get total job record count for accurate hookCtx and ProcessingContext
+    const jobState = await this.stateStore.getJobState(jobId);
+    const jobTotalRecords = jobState?.totalRecords ?? records.length;
+
     this.eventBus.emit({
       type: 'batch:started',
       jobId,
@@ -133,7 +137,7 @@ export class ProcessDistributedBatch {
           batchId,
           batchIndex,
           recordIndex: record.index,
-          totalRecords: records.length,
+          totalRecords: jobTotalRecords,
           signal: new AbortController().signal,
         };
 
@@ -226,7 +230,7 @@ export class ProcessDistributedBatch {
           batchId,
           batchIndex,
           recordIndex: record.index,
-          totalRecords: records.length,
+          totalRecords: jobTotalRecords,
           signal: new AbortController().signal,
         };
 
@@ -342,16 +346,31 @@ export class ProcessDistributedBatch {
     const jobComplete = await this.stateStore.tryFinalizeJob(jobId);
 
     if (jobComplete) {
-      const status = await this.stateStore.getDistributedStatus(jobId);
+      // Re-read job state for accurate record-level counts and elapsed time
+      const finalState = await this.stateStore.getJobState(jobId);
+      let totalRecs = jobTotalRecords;
+      let processedRecs = 0;
+      let failedRecs = 0;
+      let elapsed = 0;
+
+      if (finalState) {
+        totalRecs = finalState.totalRecords;
+        for (const b of finalState.batches) {
+          processedRecs += b.processedCount;
+          failedRecs += b.failedCount;
+        }
+        elapsed = finalState.startedAt ? Date.now() - finalState.startedAt : 0;
+      }
+
       this.eventBus.emit({
         type: 'job:completed',
         jobId,
         summary: {
-          total: status.totalBatches,
-          processed: status.completedBatches,
-          failed: status.failedBatches,
-          skipped: 0,
-          elapsedMs: 0,
+          total: totalRecs,
+          processed: processedRecs,
+          failed: failedRecs,
+          skipped: Math.max(0, totalRecs - processedRecs - failedRecs),
+          elapsedMs: elapsed,
         },
         timestamp: Date.now(),
       });

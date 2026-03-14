@@ -269,8 +269,15 @@ describe('BulkImport — uncovered branches', () => {
   // --- restore ---
 
   describe('restore', () => {
+    it('should throw when stateStore is not provided', async () => {
+      await expect(BulkImport.restore('any-id', { schema })).rejects.toThrow(
+        'A stateStore is required to restore a job',
+      );
+    });
+
     it('should return null for non-existent job', async () => {
-      const result = await BulkImport.restore('non-existent', { schema });
+      const stateStore = new InMemoryStateStore();
+      const result = await BulkImport.restore('non-existent', { schema, stateStore });
       expect(result).toBeNull();
     });
 

@@ -43,14 +43,19 @@ export function toRow(state: JobState): JobRow {
     id: state.id,
     status: state.status,
     config: stripNonSerializableFields(state.config),
-    batches: state.batches.map((b) => ({
-      id: b.id,
-      index: b.index,
-      status: b.status,
-      records: [],
-      processedCount: b.processedCount,
-      failedCount: b.failedCount,
-    })),
+    batches: state.batches.map((b) => {
+      const batch: Record<string, unknown> = {
+        id: b.id,
+        index: b.index,
+        status: b.status,
+        records: [],
+        processedCount: b.processedCount,
+        failedCount: b.failedCount,
+      };
+      if (b.recordStartIndex !== undefined) batch['recordStartIndex'] = b.recordStartIndex;
+      if (b.recordEndIndex !== undefined) batch['recordEndIndex'] = b.recordEndIndex;
+      return batch;
+    }),
     totalRecords: state.totalRecords,
     startedAt: state.startedAt ?? null,
     completedAt: state.completedAt ?? null,

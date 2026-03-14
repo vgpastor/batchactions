@@ -124,9 +124,10 @@ describe('BulkImport restore + processChunk', () => {
     expect(importer.getStatus().progress.percentage).toBe(100);
   });
 
-  it('should restore returns null when stateStore is not configured', async () => {
-    const result = await BulkImport.restore('nonexistent', createConfig());
-    expect(result).toBeNull();
+  it('should throw when stateStore is not configured', async () => {
+    await expect(BulkImport.restore('nonexistent', createConfig())).rejects.toThrow(
+      'A stateStore is required to restore a job',
+    );
   });
 
   it('should restore returns null for non-existent job', async () => {
