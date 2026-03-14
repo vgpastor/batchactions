@@ -5,6 +5,16 @@ All notable changes to this package will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [0.0.6] - 2026-03-14
+
+### Fixed
+
+- **`totalRecords` deflation with `maxDurationMs` chunk limits** — When `processChunk()` used `maxDurationMs` and the time limit cut processing before the source was fully re-streamed, `totalRecords` was set to a partial count, causing `buildProgress()` to report inflated percentages and `pendingRecords` to drop to 0 prematurely. The fix preserves the best-known `totalRecords` from prior cycles when the source is not fully consumed (`Math.max` guard). The value can only grow across cycles (monotonic), never shrink, until the source is fully consumed and the definitive count is established. 4 new `maxDurationMs` boundary tests.
+
+### Added
+
+- **Serverless / Chunked Processing documentation** — New README section documenting the `processChunk()` + `restore()` pattern for Lambda/Vercel, `maxRecords` vs `maxDurationMs` comparison, batch-level boundaries, and re-streaming requirements.
+
 ## [0.0.5] - 2026-03-14
 
 ### Added

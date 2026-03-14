@@ -34,6 +34,11 @@ export class StartJob {
     this.ctx.abortController = new AbortController();
     this.ctx.startedAt = this.ctx.startedAt ?? Date.now();
 
+    // Save the best-known total from prior cycles before resetting.
+    // If the source is not fully consumed (e.g., maxDurationMs limit),
+    // this value is restored after processing to prevent deflation.
+    const previousTotal = this.ctx.totalRecords;
+
     // Always reset totalRecords — the source will be re-streamed and
     // records re-counted.  Completed batches are skipped via
     // completedBatchIndices, so the counter must reflect the actual
@@ -103,6 +108,15 @@ export class StartJob {
           timestamp: Date.now(),
         });
       }
+    }
+
+    // If the source was not fully consumed (e.g., maxDurationMs cut the
+    // stream short), totalRecords only reflects the records consumed so far.
+    // Restore the best-known value from prior cycles so progress metrics
+    // never deflate.  Once the source IS fully consumed, the definitive
+    // count overwrites any previous estimate.
+    if (!this.sourceFullyConsumed) {
+      this.ctx.totalRecords = Math.max(this.ctx.totalRecords, previousTotal);
     }
 
     await this.ctx.saveState();

@@ -895,3 +895,128 @@ describe('start() with restore', () => {
     assertProgressInvariant(progress, 'partial-restore-start');
   });
 });
+
+// ============================================================
+// 12. maxDurationMs + restore: totalRecords deflation prevention
+// ============================================================
+describe('maxDurationMs + restore: totalRecords deflation prevention', () => {
+  it('should not deflate totalRecords across restore cycles with maxDurationMs', async () => {
+    const totalRecordCount = 50;
+    const csv = generateCsv(totalRecordCount);
+    const stateStore = new InMemoryStateStore();
+    const config: BatchEngineConfig = { batchSize: 5, stateStore };
+
+    // Cycle 1: maxDurationMs limits consumption
+    const engine1 = new BatchEngine(config);
+    engine1.from(new BufferSource(csv), simpleCsvParser());
+    const r1 = await engine1.processChunk(
+      async () => {
+        await new Promise((resolve) => setTimeout(resolve, 15));
+      },
+      { maxDurationMs: 100 },
+    );
+    expect(r1.done).toBe(false);
+    const jobId = r1.jobId;
+
+    const progress1 = engine1.getStatus().progress;
+    const totalAfterCycle1 = progress1.totalRecords;
+    assertProgressInvariant(progress1, 'maxDurationMs-cycle-1');
+
+    // Cycle 2: restore and continue with maxDurationMs
+    const engine2 = await BatchEngine.restore(jobId, config);
+    expect(engine2).not.toBeNull();
+    engine2!.from(new BufferSource(csv), simpleCsvParser());
+    const r2 = await engine2!.processChunk(
+      async () => {
+        await new Promise((resolve) => setTimeout(resolve, 15));
+      },
+      { maxDurationMs: 100 },
+    );
+
+    const progress2 = engine2!.getStatus().progress;
+    // totalRecords must never decrease across cycles
+    expect(progress2.totalRecords).toBeGreaterThanOrEqual(totalAfterCycle1);
+    assertProgressInvariant(progress2, 'maxDurationMs-cycle-2');
+
+    if (!r2.done) {
+      // Cycle 3: finish without time limit
+      const engine3 = await BatchEngine.restore(jobId, config);
+      engine3!.from(new BufferSource(csv), simpleCsvParser());
+      const r3 = await engine3!.processChunk(noop);
+      expect(r3.done).toBe(true);
+
+      const progress3 = engine3!.getStatus().progress;
+      expect(progress3.totalRecords).toBe(totalRecordCount);
+      assertProgressInvariant(progress3, 'maxDurationMs-cycle-3-final');
+    }
+  });
+
+  it('should maintain invariant processed + failed + pending = totalRecords with maxDurationMs', async () => {
+    const csv = generateCsv(40);
+    const stateStore = new InMemoryStateStore();
+    const config: BatchEngineConfig = { batchSize: 5, stateStore };
+
+    const engine = new BatchEngine(config);
+    engine.from(new BufferSource(csv), simpleCsvParser());
+
+    const result = await engine.processChunk(
+      async () => {
+        await new Promise((resolve) => setTimeout(resolve, 10));
+      },
+      { maxDurationMs: 80 },
+    );
+
+    if (!result.done) {
+      const progress = engine.getStatus().progress;
+      assertProgressInvariant(progress, 'maxDurationMs-invariant');
+      expect(progress.percentage).toBeLessThan(100);
+    }
+  });
+
+  it('should never falsely report 100% progress when processing is incomplete due to maxDurationMs', async () => {
+    const csv = generateCsv(100);
+    const stateStore = new InMemoryStateStore();
+    const config: BatchEngineConfig = { batchSize: 5, stateStore };
+
+    let jobId: string | null = null;
+    let prevTotal = 0;
+
+    for (let cycle = 0; cycle < 20; cycle++) {
+      let engine: BatchEngine;
+      if (jobId) {
+        const restored = await BatchEngine.restore(jobId, config);
+        expect(restored).not.toBeNull();
+        engine = restored!;
+      } else {
+        engine = new BatchEngine(config);
+      }
+      engine.from(new BufferSource(csv), simpleCsvParser());
+
+      const result = await engine.processChunk(
+        async () => {
+          await new Promise((resolve) => setTimeout(resolve, 5));
+        },
+        { maxDurationMs: 50 },
+      );
+      jobId = result.jobId;
+
+      const progress = engine.getStatus().progress;
+
+      // totalRecords must never shrink
+      expect(progress.totalRecords).toBeGreaterThanOrEqual(prevTotal);
+      prevTotal = progress.totalRecords;
+
+      // Invariant must always hold
+      assertProgressInvariant(progress, `maxDurationMs-multi-cycle-${String(cycle)}`);
+
+      if (result.done) {
+        expect(progress.totalRecords).toBe(100);
+        expect(progress.percentage).toBe(100);
+        break;
+      } else {
+        // When not done, percentage should never be 100
+        expect(progress.percentage).toBeLessThan(100);
+      }
+    }
+  });
+});
